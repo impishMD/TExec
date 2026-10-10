@@ -1,52 +1,43 @@
 <template>
-  <div>
-    <v-toolbar flat>
-      <v-app-bar-nav-icon @click="showDrawer()"></v-app-bar-nav-icon>
-      <v-toolbar-title>
-        <router-link :to="`/project/${projectId}/workflows`">
-          {{ $t('workflows') }}
-        </router-link>
-        <span class="ml-2">
-          / {{ workflow ? workflow.name : $t('workflowRun') }} #{{ runId }}
-          <span v-if="details && details.run.version" class="text--secondary">
-            · {{ details.run.version }}
-          </span>
-          <span
-            v-if="details && details.revision"
-            class="text--secondary"
-            :title="$t('workflowRunRevisionHint')"
-          >
-            · {{ $t('workflowRevisionLabel', { number: details.revision }) }}
-          </span>
-        </span>
-      </v-toolbar-title>
-
-      <v-spacer></v-spacer>
-
-      <v-chip
-        v-if="details"
-        :color="statusColor(details.run.status)"
-        small
-        class="mr-3"
-      >{{ statusTitle(details.run.status) }}</v-chip>
-
-      <v-btn
-        v-if="canStopRun"
-        color="error"
-        small
-        outlined
-        class="mr-3"
-        :loading="stopping"
-        @click="stopRun()"
-      >
-        <v-icon left small>mdi-stop</v-icon>
-        {{ $t('stop') }}
-      </v-btn>
-
-      <v-btn icon @click="loadData()" :title="$t('refresh')">
-        <v-icon>mdi-refresh</v-icon>
-      </v-btn>
-    </v-toolbar>
+  <div class="WorkflowRun">
+    <WorkflowHeader :project-id="projectId" @show-drawer="showDrawer()">
+      <template #title>
+        <h1>{{ workflow ? workflow.name : $t('workflowRun') }}</h1>
+      </template>
+      <template #metadata>
+        <v-chip small outlined>{{ $t('workflowRun') }} #{{ runId }}</v-chip>
+        <v-chip v-if="details && details.run.version" small outlined>
+          {{ details.run.version }}
+        </v-chip>
+        <v-chip
+          v-if="details && details.revision"
+          small outlined :title="$t('workflowRunRevisionHint')"
+        >{{ $t('workflowRevisionLabel', { number: details.revision }) }}</v-chip>
+        <v-chip
+          v-if="details"
+          :color="statusColor(details.run.status)"
+          small
+          outlined
+          class="WorkflowRun__status"
+        >{{ statusTitle(details.run.status) }}</v-chip>
+      </template>
+      <template #actions>
+        <v-btn
+          v-if="canStopRun"
+          color="error"
+          small
+          outlined
+          :loading="stopping"
+          @click="stopRun()"
+        >
+          <v-icon left small>mdi-stop</v-icon>
+          {{ $t('stop') }}
+        </v-btn>
+        <v-btn icon @click="loadData()" :title="$t('refresh')">
+          <v-icon>mdi-refresh</v-icon>
+        </v-btn>
+      </template>
+    </WorkflowHeader>
 
     <v-divider />
 
@@ -128,11 +119,21 @@
 
 <style lang="scss">
 .WorkflowRun {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 48px);
+  height: calc(100dvh - 48px);
+  min-height: 480px;
+  min-width: 0;
+
+  @media (max-width: 959px) {
+    height: calc(100vh - 32px);
+    height: calc(100dvh - 32px);
+  }
 
   &__deliveries { flex: 0 0 auto; max-height: 220px; overflow-y: auto; overflow-wrap: anywhere; }
 
   &__body {
-    height: calc(100vh - 65px);
     flex: 1 1 auto;
     min-height: 0;
     display: flex;
@@ -182,11 +183,12 @@ import EventBus from '@/event-bus';
 import { getErrorMessage } from '@/lib/error';
 import PermissionsCheck from '@/components/PermissionsCheck';
 import WorkflowGraph from '@/components/WorkflowGraph.vue';
+import WorkflowHeader from '@/components/workflow/WorkflowHeader.vue';
 import { USER_PERMISSIONS } from '@/lib/constants';
 import { notificationRunStatus } from '@/lib/workflowNotifications';
 
 export default {
-  components: { WorkflowGraph },
+  components: { WorkflowGraph, WorkflowHeader },
   mixins: [DisplayLabelsMixin, PermissionsCheck],
   props: {
     projectId: Number,

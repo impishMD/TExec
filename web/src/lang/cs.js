@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: 'Jakýkoli předchozí uzel',
   workflowApprovalTimeout: 'Časový limit schválení (v sekundách)',
   workflowApprovalMessage: 'Zpráva o schválení',
+  workflowApprovalMessageHint: 'Volitelné. Zobrazuje se v TExec osobě schvalující krok; neposílá se jako oznámení.',
   workflowApprovalActions: 'Schválení',
   workflowApprove: 'Schválit',
   workflowReject: 'Odmítnout',

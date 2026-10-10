@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: 'Elk voorafgaand knooppunt',
   workflowApprovalTimeout: 'Time-out voor goedkeuring (seconden)',
   workflowApprovalMessage: 'Goedkeuringsbericht',
+  workflowApprovalMessageHint: 'Optioneel. Wordt in TExec getoond aan degene die de stap goedkeurt; wordt niet als melding verzonden.',
   workflowApprovalActions: 'Goedkeuring',
   workflowApprove: 'Goedkeuren',
   workflowReject: 'Afwijzen',

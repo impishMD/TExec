@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: '任意の先行ノード',
   workflowApprovalTimeout: '承認タイムアウト（秒）',
   workflowApprovalMessage: '承認メッセージ',
+  workflowApprovalMessageHint: '任意。ステップを承認する人に TExec 内で表示されます。通知としては送信されません。',
   workflowApprovalActions: '承認',
   workflowApprove: '承認する',
   workflowReject: '拒否する',

@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: '이전 노드',
   workflowApprovalTimeout: '승인 시간 초과(초)',
   workflowApprovalMessage: '승인 메시지',
+  workflowApprovalMessageHint: '선택 사항입니다. TExec에서 단계를 승인하는 사람에게 표시되며 알림으로 전송되지 않습니다.',
   workflowApprovalActions: '승인',
   workflowApprove: '승인',
   workflowReject: '거절하다',

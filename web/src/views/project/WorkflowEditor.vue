@@ -9,92 +9,89 @@
       @no="cancelLeave()"
     />
 
-    <v-toolbar flat>
-      <v-app-bar-nav-icon @click="showDrawer()"></v-app-bar-nav-icon>
-      <v-toolbar-title class="WorkflowEditor__title d-flex align-center">
-        <router-link :to="`/project/${projectId}/workflows`">
-          {{ $t('workflows') }}
-        </router-link>
-        <span class="mx-2">/</span>
-        <span
+    <WorkflowHeader :project-id="projectId" @show-drawer="showDrawer()">
+      <template #title>
+        <div
           v-if="item != null"
           class="WorkflowEditor__nameWrap"
           :class="{ 'WorkflowEditor__nameWrap--disabled': !canManage }"
         >
           <v-icon small class="WorkflowEditor__nameIcon">mdi-pencil</v-icon>
           <span class="WorkflowEditor__nameSizer" :data-value="item.name || $t('newWorkflow')">
-            <input
-              v-model="item.name"
+            <textarea
+              :value="item.name"
               :placeholder="$t('newWorkflow')"
               :disabled="!canManage"
               :aria-label="$t('name')"
-              size="1"
+              rows="1"
               class="WorkflowEditor__nameField"
+              @input="item.name = $event.target.value.replace(/[\r\n]+/g, ' ')"
+              @keydown.enter.prevent="$event.target.blur()"
             />
           </span>
-        </span>
+        </div>
+      </template>
+      <template #metadata>
         <v-chip
           v-if="item != null && item.revision"
-          x-small
+          small
           outlined
-          class="ml-3"
           :title="$t('workflowRevisionHint')"
         >{{ $t('workflowRevisionLabel', { number: item.revision }) }}</v-chip>
         <v-tooltip v-if="activeRuns > 0" bottom>
           <template v-slot:activator="{ on, attrs }">
-            <v-chip x-small outlined color="warning" class="ml-2" v-bind="attrs" v-on="on">
-              <v-icon x-small left>mdi-play-circle-outline</v-icon>
+            <v-chip small outlined color="warning" v-bind="attrs" v-on="on">
+              <v-icon small left>mdi-play-circle-outline</v-icon>
               {{ $tc('workflowActiveRunsCount', activeRuns, { count: activeRuns }) }}
             </v-chip>
           </template>
           <span>{{ $t('workflowActiveRunsHint') }}</span>
         </v-tooltip>
-      </v-toolbar-title>
+      </template>
+      <template #actions>
+        <v-btn icon :disabled="!canUndo" :title="$t('workflowUndo')" @click="undo()">
+          <v-icon>mdi-undo</v-icon>
+        </v-btn>
+        <v-btn icon :disabled="!canRedo" :title="$t('workflowRedo')" @click="redo()">
+          <v-icon>mdi-redo</v-icon>
+        </v-btn>
 
-      <v-spacer></v-spacer>
+        <v-menu v-if="problems.length > 0" offset-y :close-on-content-click="true">
+          <template v-slot:activator="{ on, attrs }">
+            <v-chip small outlined color="warning" v-bind="attrs" v-on="on">
+              <v-icon left small>mdi-alert</v-icon>
+              {{ $tc('workflowProblemsCount', problems.length, { count: problems.length }) }}
+            </v-chip>
+          </template>
+          <v-list dense>
+            <v-list-item
+              v-for="(p, i) in problems"
+              :key="`problem-${i}`"
+              @click="focusProblem(p)"
+            >
+              <v-list-item-icon>
+                <v-icon small color="warning">mdi-alert</v-icon>
+              </v-list-item-icon>
+              <v-list-item-title>{{ p.text }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+        <v-chip v-else small outlined color="success">
+          <v-icon left small>mdi-check</v-icon>
+          {{ $t('workflowValidationPassed') }}
+        </v-chip>
 
-      <v-btn icon :disabled="!canUndo" :title="$t('workflowUndo')" @click="undo()">
-        <v-icon>mdi-undo</v-icon>
-      </v-btn>
-      <v-btn icon :disabled="!canRedo" :title="$t('workflowRedo')" class="mr-2" @click="redo()">
-        <v-icon>mdi-redo</v-icon>
-      </v-btn>
-
-      <v-menu v-if="problems.length > 0" offset-y :close-on-content-click="true">
-        <template v-slot:activator="{ on, attrs }">
-          <v-chip small outlined color="warning" class="mr-4" v-bind="attrs" v-on="on">
-            <v-icon left small>mdi-alert</v-icon>
-            {{ $tc('workflowProblemsCount', problems.length, { count: problems.length }) }}
-          </v-chip>
-        </template>
-        <v-list dense>
-          <v-list-item
-            v-for="(p, i) in problems"
-            :key="`problem-${i}`"
-            @click="focusProblem(p)"
-          >
-            <v-list-item-icon class="mr-2">
-              <v-icon small color="warning">mdi-alert</v-icon>
-            </v-list-item-icon>
-            <v-list-item-title>{{ p.text }}</v-list-item-title>
-          </v-list-item>
-        </v-list>
-      </v-menu>
-      <v-chip v-else small outlined color="success" class="mr-4">
-        <v-icon left small>mdi-check</v-icon>
-        {{ $t('workflowValidationPassed') }}
-      </v-chip>
-
-      <v-badge :value="dirty" dot color="warning" overlap offset-x="8" offset-y="8">
-        <v-btn
-          color="primary"
-          depressed
-          :disabled="!canManage || saving || problems.length > 0"
-          :loading="saving"
-          @click="save()"
-        >{{ $t('save') }}</v-btn>
-      </v-badge>
-    </v-toolbar>
+        <v-badge :value="dirty" dot color="warning" overlap offset-x="8" offset-y="8">
+          <v-btn
+            color="primary"
+            depressed
+            :disabled="!canManage || saving || problems.length > 0"
+            :loading="saving"
+            @click="save()"
+          >{{ $t('save') }}</v-btn>
+        </v-badge>
+      </template>
+    </WorkflowHeader>
 
     <v-divider />
 
@@ -218,6 +215,7 @@ import axios from 'axios';
 import EventBus from '@/event-bus';
 import { getErrorMessage } from '@/lib/error';
 import WorkflowGraph from '@/components/WorkflowGraph.vue';
+import WorkflowHeader from '@/components/workflow/WorkflowHeader.vue';
 import WorkflowNodeProperties from '@/components/workflow/WorkflowNodeProperties.vue';
 import WorkflowEdgeProperties from '@/components/workflow/WorkflowEdgeProperties.vue';
 import YesNoDialog from '@/components/YesNoDialog.vue';
@@ -237,7 +235,7 @@ function isTypingTarget(target) {
 
 export default {
   components: {
-    WorkflowGraph, WorkflowNodeProperties, WorkflowEdgeProperties, YesNoDialog,
+    WorkflowGraph, WorkflowHeader, WorkflowNodeProperties, WorkflowEdgeProperties, YesNoDialog,
   },
   mixins: [ProjectMixin, PermissionsCheck],
   props: {
@@ -703,23 +701,25 @@ export default {
 $worklow_pallete_width_collapsed: 60px;
 
 .WorkflowEditor {
-  // Inline, borderless name editor in the toolbar title.
-  &__title {
-    overflow: visible;
-  }
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  min-width: 0;
 
-  // Inline name editor: looks like a title, but the pencil + hover/focus
-  // affordances make it clear it is editable. The field auto-sizes to the
-  // width of its text via the grid-sizer trick below.
+  .WorkflowHeader { padding: 16px 24px; }
+
   &__nameWrap {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    max-width: 60vw;
-    padding: 2px 8px;
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    padding: 6px 10px;
     border-radius: 4px;
     background: rgba(127, 127, 127, 0.12);
     transition: background-color 0.15s ease, border-color 0.15s ease;
+
+    &:focus-within { outline: 1px solid var(--texec-accent); }
 
     &--disabled {
       pointer-events: none;
@@ -730,24 +730,24 @@ $worklow_pallete_width_collapsed: 60px;
   &__nameIcon {
     opacity: 0.6;
     flex: 0 0 auto;
+    margin-top: 7px;
   }
 
   &__nameWrap:focus-within &__nameIcon {
     opacity: 1;
   }
 
-  // The sizer ::after mirrors the value and gives the grid cell the text width;
-  // the input shares the same cell, so it is exactly as wide as the text.
+  // Mirror the name so the textarea grows with wrapped text without hiding it.
   &__nameSizer {
-    display: inline-grid;
-    align-items: center;
+    display: grid;
+    flex: 1 1 auto;
     min-width: 0;
 
     &::after,
     & > .WorkflowEditor__nameField {
       grid-area: 1 / 1;
-      width: auto;
-      min-width: 1ch;
+      width: 100%;
+      min-width: 0;
       font: inherit;
       font-weight: 500;
       letter-spacing: inherit;
@@ -755,11 +755,12 @@ $worklow_pallete_width_collapsed: 60px;
       margin: 0;
       border: 0;
       background: transparent;
-      white-space: pre;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
     }
 
     &::after {
-      content: attr(data-value);
+      content: attr(data-value) " ";
       visibility: hidden;
     }
   }
@@ -767,6 +768,8 @@ $worklow_pallete_width_collapsed: 60px;
   &__nameField {
     color: inherit;
     outline: none;
+    resize: none;
+    overflow: hidden;
 
     &::placeholder {
       color: inherit;
@@ -778,7 +781,6 @@ $worklow_pallete_width_collapsed: 60px;
     display: flex;
     flex: 1 1 auto;
     min-height: 0;
-    height: calc(100vh - 65px);
   }
 
   &__side {

@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: 'Jeder vorhergehende Knoten',
   workflowApprovalTimeout: 'Genehmigungs-Timeout (Sekunden)',
   workflowApprovalMessage: 'Genehmigungsnachricht',
+  workflowApprovalMessageHint: 'Optional. Wird der genehmigenden Person in TExec angezeigt; wird nicht als Benachrichtigung gesendet.',
   workflowApprovalActions: 'Genehmigung',
   workflowApprove: 'Genehmigen',
   workflowReject: 'Ablehnen',

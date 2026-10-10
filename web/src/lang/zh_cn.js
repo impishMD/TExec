@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: '任何前面的节点',
   workflowApprovalTimeout: '审批超时（秒）',
   workflowApprovalMessage: '批准消息',
+  workflowApprovalMessageHint: '可选。在 TExec 中显示给审批此步骤的人，不会作为通知发送。',
   workflowApprovalActions: '批准',
   workflowApprove: '批准',
   workflowReject: '拒绝',

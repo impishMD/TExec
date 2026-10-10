@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: 'Qualquer nó anterior',
   workflowApprovalTimeout: 'Tempo limite de aprovação (segundos)',
   workflowApprovalMessage: 'Mensagem de aprovação',
+  workflowApprovalMessageHint: 'Opcional. Apresentado no TExec à pessoa que aprova o passo; não é enviado como notificação.',
   workflowApprovalActions: 'Aprovação',
   workflowApprove: 'Aprovar',
   workflowReject: 'Rejeitar',

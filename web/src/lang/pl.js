@@ -632,6 +632,7 @@ export default {
   workflowConvergenceAny: 'Dowolny poprzedni węzeł',
   workflowApprovalTimeout: 'Limit czasu zatwierdzenia (sekundy)',
   workflowApprovalMessage: 'Komunikat zatwierdzający',
+  workflowApprovalMessageHint: 'Opcjonalne. Widoczne w TExec dla osoby zatwierdzającej krok; nie jest wysyłane jako powiadomienie.',
   workflowApprovalActions: 'Zatwierdzenie',
   workflowApprove: 'Zatwierdź',
   workflowReject: 'Odrzuć',

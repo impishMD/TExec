@@ -89,9 +89,13 @@
             class="mb-5"
             @input="emitChange"
           />
-          <v-text-field
+          <v-textarea
             v-model="node.approval_message"
             :label="$t('workflowApprovalMessage')"
+            :hint="$t('workflowApprovalMessageHint')"
+            persistent-hint
+            rows="2"
+            auto-grow
             :disabled="!canManage"
             outlined
             dense
