@@ -117,6 +117,8 @@ const (
 	WorkflowApprovalApprove             Kind = "resource.workflow/approve"
 	WorkflowApprovalReject              Kind = "resource.workflow/reject"
 	WorkflowApprovalTimeout             Kind = "resource.workflow/timeout"
+	WorkflowNotificationSent            Kind = "resource.workflow/notification_sent"
+	WorkflowNotificationFailed          Kind = "resource.workflow/notification_failed"
 	ResourceEnvironmentCreate           Kind = "resource.environment/create"
 	ResourceEnvironmentUpdate           Kind = "resource.environment/update"
 	ResourceEnvironmentDelete           Kind = "resource.environment/delete"

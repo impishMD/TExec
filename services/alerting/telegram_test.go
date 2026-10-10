@@ -89,3 +89,30 @@ func TestTelegramPreviewValidationAndSafeFailures(t *testing.T) {
 	cancel()
 	require.Error(t, s.TestTelegram(ctx, id, TelegramUpdate{ChatID: "@preview", Token: ptr("123:private-token")}, "en", client))
 }
+
+func TestWorkflowNotificationUsesProjectChannelPlainTextAndLink(t *testing.T) {
+	s, id := setup(t)
+	calls := 0
+	client := &http.Client{Transport: transportFunc(func(r *http.Request) (*http.Response, error) {
+		calls++
+		require.Equal(t, "/bot123:project-token/sendMessage", r.URL.Path)
+		var body map[string]any
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+		require.Equal(t, "@workflow", body["chat_id"])
+		require.Equal(t, "<b>plain & text</b>", body["text"])
+		require.NotContains(t, body, "parse_mode")
+		keyboard := body["reply_markup"].(map[string]any)["inline_keyboard"].([]any)
+		button := keyboard[0].([]any)[0].(map[string]any)
+		require.Equal(t, "https://texec.example.test/project/1/workflows/2/runs/3", button["url"])
+		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true}`))}, nil
+	})}
+	send := func() error {
+		return s.SendWorkflowNotification(context.Background(), id, "<b>plain & text</b>", "https://texec.example.test/project/1/workflows/2/runs/3", "Open run", client)
+	}
+	require.EqualError(t, send(), "Telegram notifications are disabled for this project")
+	require.Zero(t, calls)
+	_, err := s.UpdateTelegram(id, TelegramUpdate{Enabled: true, ChatID: "@workflow", Token: ptr("123:project-token")})
+	require.NoError(t, err)
+	require.NoError(t, send())
+	require.Equal(t, 1, calls)
+}

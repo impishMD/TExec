@@ -104,6 +104,9 @@ export default {
           kind: 'delay', icon: 'mdi-timer-outline', color: '#ff9800', text: this.$t('workflowNodeKindDelay'),
         },
         {
+          kind: 'notification', icon: 'mdi-bell-outline', color: '#26a69a', text: this.$t('workflowNodeKindNotification'),
+        },
+        {
           kind: 'note', icon: 'mdi-note-text-outline', color: null, text: this.$t('workflowNodeKindNote'),
         },
       ];

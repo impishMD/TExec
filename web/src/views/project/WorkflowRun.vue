@@ -52,6 +52,26 @@
 
     <div class="WorkflowRun__body">
       <template v-if="details != null">
+        <v-expansion-panels v-if="deliveries.length" flat class="WorkflowRun__deliveries">
+          <v-expansion-panel>
+            <v-expansion-panel-header>
+              {{ $t('notifications') }} ({{ deliveries.length }})
+            </v-expansion-panel-header>
+            <v-expansion-panel-content>
+              <div v-for="delivery in deliveries" :key="delivery.id" class="mb-3">
+                <strong>
+                  #{{ delivery.workflow_node_id }} · {{ $t(`workflowDelivery_${delivery.status}`) }}
+                </strong>
+                <span class="ml-2 text--secondary">
+                  {{ $t('workflowNotificationAttempts', { count: delivery.attempts }) }}
+                </span>
+                <div v-if="delivery.last_error" class="error--text">
+                  {{ notificationError(delivery.last_error) }}
+                </div>
+              </div>
+            </v-expansion-panel-content>
+          </v-expansion-panel>
+        </v-expansion-panels>
         <div class="WorkflowRun__graph">
           <WorkflowGraph
             v-if="workflow"
@@ -109,6 +129,8 @@
 <style lang="scss">
 .WorkflowRun {
 
+  &__deliveries { flex: 0 0 auto; max-height: 220px; overflow-y: auto; overflow-wrap: anywhere; }
+
   &__body {
     height: calc(100vh - 65px);
     flex: 1 1 auto;
@@ -161,6 +183,7 @@ import { getErrorMessage } from '@/lib/error';
 import PermissionsCheck from '@/components/PermissionsCheck';
 import WorkflowGraph from '@/components/WorkflowGraph.vue';
 import { USER_PERMISSIONS } from '@/lib/constants';
+import { notificationRunStatus } from '@/lib/workflowNotifications';
 
 export default {
   components: { WorkflowGraph },
@@ -221,9 +244,19 @@ export default {
             end: n.delay.resolved,
             resumeAt: n.delay.status === 'waiting' ? n.delay.resume_at : null,
           };
+        } else if (n.notification) {
+          map[id] = {
+            status: notificationRunStatus(n.notification, n.node.notification),
+            start: n.notification.created,
+            end: n.notification.resolved,
+          };
         }
+        if (map[id] && n.notification) map[id].delivery = n.notification;
       });
       return map;
+    },
+    deliveries() {
+      return (this.details?.nodes || []).filter((n) => n.notification).map((n) => n.notification);
     },
     pendingApprovals() {
       return (this.details?.nodes || [])
@@ -247,6 +280,7 @@ export default {
     if (this.pollHandle) clearInterval(this.pollHandle);
   },
   methods: {
+    notificationError(error) { return getErrorMessage({ response: { data: { error } } }); },
     showDrawer() {
       EventBus.$emit('i-show-drawer');
     },

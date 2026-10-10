@@ -100,6 +100,7 @@ import WorkflowQuickAddMenu from '@/components/workflow/WorkflowQuickAddMenu.vue
 import AppsMixin from '@/components/AppsMixin';
 import { layoutWorkflowNodes, needsAutoLayout } from '@/lib/workflowLayout';
 import { wouldCreateCycle, nextNodeId, edgeRunState } from '@/lib/workflowGraph';
+import { defaultNotification } from '@/lib/workflowNotifications';
 import {
   graphBounds, fitViewport, zoomAt, snapToGrid, clampZoom, wheelZoomFactor,
   ZOOM_MIN, ZOOM_MAX, ZOOM_STEP,
@@ -467,6 +468,7 @@ export default {
           // Approval and delay nodes must not carry task params (backend validation).
           task_params: kind === 'task' ? {} : null,
           delay_seconds: kind === 'delay' ? 60 : undefined,
+          notification: kind === 'notification' ? defaultNotification(this.$i18n.locale) : null,
         };
       this.createDrawflowNode(node, snapToGrid(posX), snapToGrid(posY));
       this.emitChange();

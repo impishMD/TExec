@@ -40,4 +40,11 @@ type WorkflowManager interface {
 	UpdateWorkflowDelay(delay WorkflowDelay) error
 	ResolveWorkflowDelayIfWaiting(delay WorkflowDelay) (bool, error)
 	GetExpiredWorkflowDelays() ([]WorkflowDelay, error)
+	GetWorkflowNotifications(projectID, runID int) ([]WorkflowNotification, error)
+	CreateWorkflowNotification(item WorkflowNotification) (WorkflowNotification, error)
+	GetDueWorkflowNotifications() ([]WorkflowNotification, error)
+	ClaimWorkflowNotification(item WorkflowNotification) (bool, error)
+	UpdateWorkflowNotification(item WorkflowNotification) error
+	CancelWorkflowNotifications(projectID, runID int) error
+	GetWorkflowTaskOutputTail(projectID, taskID int) ([]string, error)
 }

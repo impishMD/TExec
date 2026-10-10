@@ -127,6 +127,8 @@ func Catalog() []Entry {
 		{Kind: WorkflowApprovalApprove, Type: TypeChange, Metadata: WorkflowMetadata{}},
 		{Kind: WorkflowApprovalReject, Type: TypeChange, Metadata: WorkflowMetadata{}},
 		{Kind: WorkflowApprovalTimeout, Type: TypeChange, Metadata: WorkflowMetadata{}},
+		{Kind: WorkflowNotificationSent, Type: TypeChange, Metadata: WorkflowMetadata{}},
+		{Kind: WorkflowNotificationFailed, Type: TypeChange, Metadata: WorkflowMetadata{}},
 		{Kind: ResourceEnvironmentCreate, Type: TypeCreation, Metadata: EnvironmentMetadata{}, Partial: []Reason{ReasonSecretFailed}},
 		{Kind: ResourceEnvironmentUpdate, Type: TypeChange, Metadata: EnvironmentMetadata{}, Partial: []Reason{ReasonSecretFailed}},
 		{Kind: ResourceEnvironmentDelete, Type: TypeDeletion, Metadata: DeleteMetadata{}, Partial: []Reason{ReasonSecretFailed}},

@@ -348,6 +348,8 @@ func Route(
 	projectUserAPI.Path("/templates").HandlerFunc(projects.AddTemplate).Methods("POST")
 	projectUserAPI.Path("/workflows").HandlerFunc(workflowController.GetWorkflows).Methods("GET", "HEAD")
 	projectUserAPI.Path("/workflows").HandlerFunc(workflowController.AddWorkflow).Methods("POST")
+	projectUserAPI.Path("/workflows/notifications/preview").HandlerFunc(workflowController.PreviewNotification).Methods("POST")
+	projectUserAPI.Path("/workflows/notifications/test").HandlerFunc(workflowController.TestNotification).Methods("POST")
 
 	projectUserAPI.Path("/schedules").HandlerFunc(projects.GetProjectSchedules).Methods("GET", "HEAD")
 	projectUserAPI.Path("/schedules").HandlerFunc(projects.AddSchedule).Methods("POST")

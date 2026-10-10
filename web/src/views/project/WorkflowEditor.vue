@@ -189,6 +189,8 @@
           :value="editingNode"
           :templates="templates"
           :can-manage="canManage"
+          :project-id="projectId"
+          :notification-sources="notificationSourceOptions"
           @input="applyNodeEdit"
           @delete="deleteSelectedNode()"
           @close="closePanel()"
@@ -224,6 +226,7 @@ import PermissionsCheck from '@/components/PermissionsCheck';
 import { USER_PERMISSIONS } from '@/lib/constants';
 import { layoutWorkflowNodes, needsAutoLayout } from '@/lib/workflowLayout';
 import WorkflowHistory from '@/lib/workflowHistory';
+import { notificationProblem, notificationSources } from '@/lib/workflowNotifications';
 import { readSideCollapsed, writeSideCollapsed } from '@/lib/workflowEditorPrefs';
 
 function isTypingTarget(target) {
@@ -291,6 +294,9 @@ export default {
           kind: 'delay', icon: 'mdi-timer-outline', color: '#ff9800', text: this.$t('workflowPaletteDelayNode'),
         },
         {
+          kind: 'notification', icon: 'mdi-bell-outline', color: '#26a69a', text: this.$t('workflowNodeKindNotification'),
+        },
+        {
           kind: 'note', icon: 'mdi-note-text-outline', color: null, text: this.$t('workflowPaletteNoteNode'),
         },
       ];
@@ -302,6 +308,17 @@ export default {
         start_version: this.item.start_version || '',
         nodes: this.item.nodes,
         edges: this.item.edges,
+      });
+    },
+    notificationSourceOptions() {
+      if (!this.editingNode || !this.item) return [];
+      const sources = notificationSources(this.item.nodes, this.item.edges, this.editingNode.id);
+      return sources.map((node) => {
+        const template = (this.templates || []).find((t) => t.id === node.template_id);
+        const titles = {
+          approval: 'workflowNodeKindApproval', delay: 'workflowNodeKindDelay', notification: 'workflowNodeKindNotification', task: 'workflowNodeKindTask',
+        };
+        return { value: node.id, text: `${template ? template.name : this.$t(titles[node.kind || 'task'])} #${node.id}` };
       });
     },
     dirty() {
@@ -334,6 +351,15 @@ export default {
 
       nodes.forEach((n) => {
         const kind = n.kind || 'task';
+        if (kind === 'notification' || n.notification) {
+          const problem = notificationProblem(n.notification);
+          if (problem) out.push({ text: this.$t(problem), nodeId: n.id });
+          const sources = notificationSources(nodes, edges, n.id);
+          if (n.notification?.source_node_id != null
+            && !sources.some((source) => source.id === n.notification.source_node_id)) {
+            out.push({ text: this.$t('workflowNotificationSourceInvalid'), nodeId: n.id });
+          }
+        }
         if (kind === 'task' && !n.template_id) {
           out.push({ text: this.$t('workflowErrorTaskNeedsTemplate'), nodeId: n.id });
         }

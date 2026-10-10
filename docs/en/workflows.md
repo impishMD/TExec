@@ -11,6 +11,7 @@ Notes are annotations and cannot have connections.
 | Task | Runs a task template from this project with the node's saved parameters |
 | Approval | Waits for approval/rejection; an optional timeout in seconds rejects it |
 | Delay | Waits the configured positive number of seconds |
+| Notification | Sends a message to the project's Telegram chat; its result follows the selected delivery failure policy |
 | Note | Displays a comment without running anything |
 
 Connections run on success, failure, or either result. **All** requires every incoming
@@ -27,6 +28,60 @@ and is shared by its nodes. The first task becomes the build reference for deplo
 Project members can view graphs and runs. Editing/deleting requires **Manage project
 resources**; running, stopping and resolving approvals requires **Run project tasks**.
 Individual template grants do not grant workflow control. Actions are recorded in the audit log.
+
+## Notifications
+
+Configure Telegram in **Project settings → Notifications** first. Add a **Notification** node,
+or enable **Notify when approval is required** on an approval node. Delivery uses the saved
+project channel, including its inherited global bot token. Credentials and chat IDs are not
+copied into the graph.
+
+Messages are plain text, up to 3000 characters, with `{{ variable.name }}` substitutions.
+Expressions, commands and HTML are not executed. Supported variables:
+
+| Variables | Values |
+| --- | --- |
+| `project.name`, `workflow.name` | Project and workflow names |
+| `run.id`, `run.started_by`, `run.url` | Run number, initiator and link |
+| `date`, `time`, `timezone` | Enqueue time in the selected timezone; approval notifications use the time approval became pending |
+| `source.name`, `source.status`, `source.error` | Selected predecessor's name, result and short error excerpt |
+| `approval.deadline` | Approval deadline, or “No deadline” |
+
+The default source combines completed immediate predecessors. You can select a specific
+upstream node instead. Unfinished and skipped nodes are excluded; missing values become `—`.
+The preview uses sample data; the test button sends a clearly marked sample message to the
+project chat. Example:
+
+```text
+Approval required: {{ workflow.name }} #{{ run.id }}
+{{ date }} {{ time }} ({{ timezone }})
+Previous step: {{ source.name }} — {{ source.status }}
+Error: {{ source.error }}
+Approve before: {{ approval.deadline }}
+{{ run.url }}
+```
+
+`source.error` includes up to three error-marked lines from the last 100 log records,
+with length limits. Recognizable password/token patterns and URL credentials are masked;
+this cannot guarantee removal of arbitrary secrets printed by commands. Full logs are not
+sent. The rendered message is limited to 4000 characters.
+
+Set the public server URL (`web_host` / `TEXEC_WEB_ROOT`) to include run links and a Telegram
+link button. Approvals happen in TExec with normal user permission checks; the button only
+opens the run page.
+
+The queue and rendered text are persisted. Delivery makes at most three attempts, waiting
+10 then 20 seconds between retries. Interrupted attempts can be reclaimed after one minute.
+The run page shows delivery status, attempt count and errors. The default failure policy
+records the error but continues through the node's success branch. **Fail the step** uses
+the failure branch and fails the run. Approval notification failures never resolve approvals.
+Stopping the run, resolving approval or reaching its deadline cancels pending delivery.
+
+Normal operation creates one delivery record per node/run. Telegram has no idempotent send
+operation: a crash after Telegram accepts a message but before the database records success
+can cause a duplicate after recovery. Editing a graph does not alter queued messages.
+Project export includes notification configuration; a full database backup also preserves
+the queue and delivery history.
 
 ## Ansible values between nodes
 

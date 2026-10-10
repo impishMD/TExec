@@ -119,6 +119,23 @@ func ValidateWorkflowTemplate(store WorkflowTemplateValidationStore, workflow Wo
 		if err := node.EffectiveConvergenceMode().Validate(); err != nil {
 			return err
 		}
+		if node.EffectiveKind() == WorkflowNodeNotificationKind && node.Notification == nil {
+			return bad("notification node requires a message and channel")
+		}
+		if node.Notification != nil {
+			if node.EffectiveKind() != WorkflowNodeNotificationKind && node.EffectiveKind() != WorkflowNodeApprovalKind {
+				return bad("notifications are supported on notification and approval nodes only")
+			}
+			if err := node.Notification.Validate(); err != nil {
+				return err
+			}
+			if source := node.Notification.SourceNodeID; source != nil {
+				ancestors := WorkflowAncestors(workflow, node.ID)
+				if !ancestors[*source] {
+					return bad("notification source must be an upstream node")
+				}
+			}
+		}
 		switch node.EffectiveKind() {
 		case WorkflowNodeTaskKind:
 			template, err := store.GetTemplate(workflow.ProjectID, node.TemplateID)
@@ -142,4 +159,19 @@ func ValidateWorkflowTemplate(store WorkflowTemplateValidationStore, workflow Wo
 		}
 	}
 	return nil
+}
+
+func WorkflowAncestors(workflow WorkflowTemplate, nodeID int) map[int]bool {
+	seen := map[int]bool{}
+	var visit func(int)
+	visit = func(id int) {
+		for _, edge := range workflow.Edges {
+			if edge.DestinationNodeID == id && !seen[edge.SourceNodeID] {
+				seen[edge.SourceNodeID] = true
+				visit(edge.SourceNodeID)
+			}
+		}
+	}
+	visit(nodeID)
+	return seen
 }

@@ -19,6 +19,20 @@ import (
 // project never sends, and a project token takes precedence over the global token.
 // Errors must not include Telegram's request URL (it contains the bot token).
 func (s Service) SendTelegram(projectID int, text string, client *http.Client) (bool, error) {
+	return s.sendProjectTelegram(context.Background(), projectID, text, "", "", false, client)
+}
+
+// SendWorkflowNotification uses plain text so substituted names and log snippets
+// cannot become Telegram HTML. Credentials and destinations stay in project settings.
+func (s Service) SendWorkflowNotification(ctx context.Context, projectID int, text, link, button string, client *http.Client) error {
+	sent, err := s.sendProjectTelegram(ctx, projectID, text, link, button, true, client)
+	if err == nil && !sent {
+		return errors.New("Telegram notifications are disabled for this project")
+	}
+	return err
+}
+
+func (s Service) sendProjectTelegram(ctx context.Context, projectID int, text, link, button string, plain bool, client *http.Client) (bool, error) {
 	if projectID <= 0 {
 		return false, errors.New("Telegram alerts require a project")
 	}
@@ -51,7 +65,7 @@ func (s Service) SendTelegram(projectID int, text string, client *http.Client) (
 	if !tokenPattern.Match(token) {
 		return false, errors.New("invalid stored Telegram bot token")
 	}
-	return sendTelegram(context.Background(), string(token), config.ChatID, text, client)
+	return sendTelegramMessage(ctx, string(token), config.ChatID, text, link, button, plain, client)
 }
 
 // TestTelegram sends using the submitted form without changing saved settings.
@@ -100,7 +114,18 @@ func (s Service) TestTelegram(ctx context.Context, projectID int, update Telegra
 }
 
 func sendTelegram(ctx context.Context, token, chatID, text string, client *http.Client) (bool, error) {
-	body, err := json.Marshal(map[string]string{"chat_id": chatID, "parse_mode": "HTML", "text": text})
+	return sendTelegramMessage(ctx, token, chatID, text, "", "", false, client)
+}
+
+func sendTelegramMessage(ctx context.Context, token, chatID, text, link, button string, plain bool, client *http.Client) (bool, error) {
+	payload := map[string]any{"chat_id": chatID, "text": text}
+	if !plain {
+		payload["parse_mode"] = "HTML"
+	}
+	if link != "" && button != "" {
+		payload["reply_markup"] = map[string]any{"inline_keyboard": [][]map[string]string{{{"text": button, "url": link}}}}
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return false, errors.New("could not encode Telegram alert")
 	}

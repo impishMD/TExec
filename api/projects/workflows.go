@@ -164,15 +164,27 @@ func (c *WorkflowController) GetWorkflowRun(w http.ResponseWriter, r *http.Reque
 		workflowError(w, err)
 		return
 	}
+	notifications, err := c.workflowRepo.GetWorkflowNotifications(run.ProjectID, run.ID)
+	if err != nil {
+		workflowError(w, err)
+		return
+	}
 	type nodeRun struct {
-		Node     db.WorkflowNode      `json:"node"`
-		Task     *db.TaskWithTpl      `json:"task,omitempty"`
-		Approval *db.WorkflowApproval `json:"approval,omitempty"`
-		Delay    *db.WorkflowDelay    `json:"delay,omitempty"`
+		Node         db.WorkflowNode          `json:"node"`
+		Task         *db.TaskWithTpl          `json:"task,omitempty"`
+		Approval     *db.WorkflowApproval     `json:"approval,omitempty"`
+		Delay        *db.WorkflowDelay        `json:"delay,omitempty"`
+		Notification *db.WorkflowNotification `json:"notification,omitempty"`
 	}
 	nodes := make([]nodeRun, 0, len(graph.Nodes))
 	for _, node := range graph.Nodes {
 		entry := nodeRun{Node: node}
+		for _, notification := range notifications {
+			if notification.WorkflowNodeID == node.ID {
+				entry.Notification = &notification
+				break
+			}
+		}
 		for _, task := range tasks {
 			if task.WorkflowNodeID != nil && *task.WorkflowNodeID == node.ID {
 				entry.Task = &task
