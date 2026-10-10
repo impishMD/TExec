@@ -1,0 +1,794 @@
+package tasks
+
+import (
+	"os"
+	"path"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/impishMD/TExec/db/sql"
+	"github.com/impishMD/TExec/pkg/ssh"
+
+	"github.com/impishMD/TExec/pkg/task_logger"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/impishMD/TExec/db_lib"
+
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/util"
+)
+
+type KeyInstallerMock struct {
+}
+
+func (s *KeyInstallerMock) Install(key db.AccessKey, usage db.AccessKeyRole, logger task_logger.Logger) (installation ssh.AccessKeyInstallation, err error) {
+	return ssh.AccessKeyInstallation{}, nil
+}
+
+type InventoryServiceMock struct {
+}
+
+func (s *InventoryServiceMock) GetInventory(projectID int, inventoryID int) (inventory db.Inventory, err error) {
+	return db.Inventory{}, nil
+}
+
+type EncryptionServiceMock struct {
+}
+
+func (s *EncryptionServiceMock) RekeyAccessKeys(oldKey string) (err error) {
+	return nil
+}
+
+func (s *EncryptionServiceMock) DeleteSecret(key *db.AccessKey) error {
+	return nil
+}
+
+func (s *EncryptionServiceMock) SerializeSecret(key *db.AccessKey) error {
+	return nil
+}
+
+func (s *EncryptionServiceMock) DeserializeSecret(key *db.AccessKey) error {
+	return nil
+}
+
+func (s *EncryptionServiceMock) FillEnvironmentSecrets(env *db.Environment, deserializeSecret bool) error {
+	return nil
+}
+
+func (s *EncryptionServiceMock) CreateTaskSurveySecrets(projectID int, taskID int, secrets string, expireAt time.Time) error {
+	return nil
+}
+
+func (s *EncryptionServiceMock) GetTaskSurveySecrets(projectID int, taskID int) (string, error) {
+	return "", nil
+}
+
+func (s *EncryptionServiceMock) DeleteTaskSurveySecrets(projectID int, taskID int) error {
+	return nil
+}
+
+type successfulKilledJob struct {
+	onRun func()
+}
+
+func (j *successfulKilledJob) Run(string, *string, string) error {
+	j.onRun()
+	return nil
+}
+
+func (j *successfulKilledJob) Kill()          {}
+func (j *successfulKilledJob) IsKilled() bool { return true }
+func (j *successfulKilledJob) Async() bool    { return false }
+
+type taskRunnerRunFixture struct {
+	store        *sql.SqlDb
+	pool         TaskPool
+	task         db.Task
+	template     db.Template
+	keyInstaller *KeyInstallerMock
+}
+
+func newTaskRunnerRunFixture(t *testing.T) taskRunnerRunFixture {
+	store := sql.InitConfigCreateTestStore()
+	keyInstaller := &KeyInstallerMock{}
+	pool := CreateTaskPool(
+		store,
+		NewMemoryTaskStateStore(),
+		nil,
+		&InventoryServiceMock{},
+		&EncryptionServiceMock{},
+		keyInstaller,
+		nil,
+		nil,
+	)
+	// finishRun publishes an event after persisting the terminal status. A
+	// buffered channel keeps these tests independent of TaskPool.Run.
+	pool.queueEvents = make(chan PoolEvent, 1)
+
+	proj, err := store.CreateProject(db.Project{})
+	require.NoError(t, err)
+	key, err := store.CreateAccessKey(db.AccessKey{
+		ProjectID: &proj.ID,
+		Type:      db.AccessKeyNone,
+	})
+	require.NoError(t, err)
+	repo, err := store.CreateRepository(db.Repository{
+		ProjectID: proj.ID,
+		SSHKeyID:  key.ID,
+		Name:      "Test",
+		GitURL:    "git@example.com:test/test",
+		GitBranch: "master",
+	})
+	require.NoError(t, err)
+	inv, err := store.CreateInventory(db.Inventory{
+		ProjectID: proj.ID,
+	})
+	require.NoError(t, err)
+	tpl, err := store.CreateTemplate(db.Template{
+		Name:         "Test",
+		Playbook:     "test.yml",
+		ProjectID:    proj.ID,
+		RepositoryID: repo.ID,
+		InventoryID:  &inv.ID,
+	})
+	require.NoError(t, err)
+	task, err := store.CreateTask(db.Task{
+		ProjectID:  proj.ID,
+		TemplateID: tpl.ID,
+	}, 0)
+	require.NoError(t, err)
+
+	return taskRunnerRunFixture{
+		store:        store,
+		pool:         pool,
+		task:         task,
+		template:     tpl,
+		keyInstaller: keyInstaller,
+	}
+}
+
+func TestTaskRunnerRun_FinalizesKilledJobThatReturnsNil(t *testing.T) {
+	fixture := newTaskRunnerRunFixture(t)
+	taskRunner := TaskRunner{
+		Task:         fixture.task,
+		Template:     fixture.template,
+		pool:         &fixture.pool,
+		keyInstaller: fixture.keyInstaller,
+	}
+	taskRunner.job = &successfulKilledJob{onRun: func() {
+		taskRunner.SetStatus(task_logger.TaskStoppingStatus)
+	}}
+
+	taskRunner.run()
+
+	assert.Equal(t, task_logger.TaskStoppedStatus, taskRunner.Task.Status)
+	assert.NotNil(t, taskRunner.Task.End)
+	persisted, err := fixture.store.GetTaskByID(fixture.task.ID)
+	require.NoError(t, err)
+	assert.Equal(t, task_logger.TaskStoppedStatus, persisted.Status)
+	assert.NotNil(t, persisted.End)
+}
+
+func TestTaskRunnerRun(t *testing.T) {
+	fixture := newTaskRunnerRunFixture(t)
+	taskRunner := TaskRunner{
+		Task:         fixture.task,
+		pool:         &fixture.pool,
+		keyInstaller: fixture.keyInstaller,
+	}
+	taskRunner.job = &LocalExecutor{
+		Task:         taskRunner.Task,
+		Template:     taskRunner.Template,
+		Inventory:    taskRunner.Inventory,
+		Repository:   taskRunner.Repository,
+		Environment:  taskRunner.Environment,
+		Logger:       &taskRunner,
+		KeyInstaller: fixture.keyInstaller,
+		RepoLock:     &KeyLock{},
+		App: &db_lib.AnsibleApp{
+			Template:   taskRunner.Template,
+			Repository: taskRunner.Repository,
+			Logger:     &taskRunner,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &taskRunner,
+				TemplateID: taskRunner.Template.ID,
+				Repository: taskRunner.Repository,
+			},
+		},
+	}
+	taskRunner.run()
+}
+
+func TestGetRepoPath(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	inventoryID := 1
+
+	tsk := TaskRunner{
+		Task: db.Task{},
+		Inventory: db.Inventory{
+			SSHKeyID: &inventoryID,
+			SSHKey: db.AccessKey{
+				ID:   12345,
+				Type: db.AccessKeySSH,
+			},
+			Type: db.InventoryStatic,
+		},
+		Template: db.Template{
+			Playbook: "deploy/test.yml",
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	dir := tsk.job.(*LocalExecutor).App.(*db_lib.AnsibleApp).GetPlaybookDir()
+	assert.Equal(t, "/tmp/project_0/repository_0_template_0_da39a3ee5e6b4b0d3255bfef95601890/deploy", dir)
+}
+
+func TestGetRepoPath_whenStartsWithSlash(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	inventoryID := 1
+
+	tsk := TaskRunner{
+		Task: db.Task{},
+		Inventory: db.Inventory{
+			SSHKeyID: &inventoryID,
+			SSHKey: db.AccessKey{
+				ID:   12345,
+				Type: db.AccessKeySSH,
+			},
+			Type: db.InventoryStatic,
+		},
+		Template: db.Template{
+			Playbook: "/deploy/test.yml",
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	dir := tsk.job.(*LocalExecutor).App.(*db_lib.AnsibleApp).GetPlaybookDir()
+	assert.Equal(t, "/tmp/project_0/repository_0_template_0_da39a3ee5e6b4b0d3255bfef95601890/deploy", dir)
+}
+
+func TestPopulateDetails(t *testing.T) {
+	store := sql.InitConfigCreateTestStore()
+
+	proj, err := store.CreateProject(db.Project{})
+	require.NoError(t, err)
+
+	key, err := store.CreateAccessKey(db.AccessKey{
+		ProjectID: &proj.ID,
+		Type:      db.AccessKeyNone,
+	})
+	require.NoError(t, err)
+
+	repo, err := store.CreateRepository(db.Repository{
+		ProjectID: proj.ID,
+		SSHKeyID:  key.ID,
+		Name:      "Test",
+		GitURL:    "git@example.com:test/test",
+		GitBranch: "master",
+	})
+	require.NoError(t, err)
+
+	inv, err := store.CreateInventory(db.Inventory{
+		ProjectID: proj.ID,
+	})
+	require.NoError(t, err)
+
+	env, err := store.CreateEnvironment(db.Environment{
+		ProjectID: proj.ID,
+		Name:      "test",
+		JSON:      `{"author": "Denis", "comment": "Hello, World!"}`,
+	})
+	require.NoError(t, err)
+
+	tpl, err := store.CreateTemplate(db.Template{
+		Name:           "Test",
+		Playbook:       "test.yml",
+		ProjectID:      proj.ID,
+		RepositoryID:   repo.ID,
+		InventoryID:    &inv.ID,
+		EnvironmentIDs: []int{env.ID},
+	})
+	require.NoError(t, err)
+
+	pool := TaskPool{
+		store:             store,
+		inventoryService:  &InventoryServiceMock{},
+		encryptionService: &EncryptionServiceMock{},
+	}
+
+	tsk := TaskRunner{
+		pool: &pool,
+		Task: db.Task{
+			TemplateID:  tpl.ID,
+			ProjectID:   proj.ID,
+			Environment: `{"comment": "Just do it!", "time": "2021-11-02"}`,
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	err = tsk.populateDetails()
+	require.NoError(t, err)
+
+	assert.Equal(t, `{"author":"Denis","comment":"Just do it!","time":"2021-11-02"}`, tsk.Environment.JSON)
+
+}
+
+func TestPopulateDetailsInventory(t *testing.T) {
+	store := sql.InitConfigCreateTestStore()
+
+	proj, err := store.CreateProject(db.Project{})
+	require.NoError(t, err)
+
+	key, err := store.CreateAccessKey(db.AccessKey{
+		ProjectID: &proj.ID,
+		Type:      db.AccessKeyNone,
+	})
+	require.NoError(t, err)
+
+	repo, err := store.CreateRepository(db.Repository{
+		ProjectID: proj.ID,
+		SSHKeyID:  key.ID,
+		Name:      "Test",
+		GitURL:    "git@example.com:test/test",
+		GitBranch: "master",
+	})
+	require.NoError(t, err)
+
+	inv, err := store.CreateInventory(db.Inventory{
+		ProjectID: proj.ID,
+		ID:        1,
+	})
+	require.NoError(t, err)
+	inv2, err := store.CreateInventory(db.Inventory{
+		ProjectID: proj.ID,
+		ID:        2,
+	})
+	require.NoError(t, err)
+	env, err := store.CreateEnvironment(db.Environment{
+		ProjectID: proj.ID,
+		Name:      "test",
+		JSON:      `{"author": "Denis", "comment": "Hello, World!"}`,
+	})
+	require.NoError(t, err)
+
+	tpl, err := store.CreateTemplate(db.Template{
+		Name:           "Test",
+		Playbook:       "test.yml",
+		ProjectID:      proj.ID,
+		RepositoryID:   repo.ID,
+		InventoryID:    &inv.ID,
+		EnvironmentIDs: []int{env.ID},
+		TaskParams: map[string]any{
+			"allow_override_inventory": true,
+		},
+	})
+	require.NoError(t, err)
+
+	pool := TaskPool{
+		store:             store,
+		inventoryService:  &InventoryServiceMock{},
+		encryptionService: &EncryptionServiceMock{},
+	}
+
+	tsk := TaskRunner{
+		pool: &pool,
+		Task: db.Task{
+			TemplateID:  tpl.ID,
+			ProjectID:   proj.ID,
+			Environment: `{"comment": "Just do it!", "time": "2021-11-02"}`,
+			InventoryID: &inv2.ID,
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	err = tsk.populateDetails()
+	require.NoError(t, err)
+}
+
+func TestPopulateDetailsInventory1(t *testing.T) {
+	store := sql.InitConfigCreateTestStore()
+
+	proj, err := store.CreateProject(db.Project{})
+	require.NoError(t, err)
+
+	key, err := store.CreateAccessKey(db.AccessKey{
+		ProjectID: &proj.ID,
+		Type:      db.AccessKeyNone,
+	})
+	require.NoError(t, err)
+
+	repo, err := store.CreateRepository(db.Repository{
+		ProjectID: proj.ID,
+		SSHKeyID:  key.ID,
+		Name:      "Test",
+		GitURL:    "git@example.com:test/test",
+		GitBranch: "master",
+	})
+	require.NoError(t, err)
+
+	inv, err := store.CreateInventory(db.Inventory{
+		ProjectID: proj.ID,
+		ID:        1,
+	})
+	require.NoError(t, err)
+	env, err := store.CreateEnvironment(db.Environment{
+		ProjectID: proj.ID,
+		Name:      "test",
+		JSON:      `{"author": "Denis", "comment": "Hello, World!"}`,
+	})
+	require.NoError(t, err)
+
+	tpl, err := store.CreateTemplate(db.Template{
+		Name:           "Test",
+		Playbook:       "test.yml",
+		ProjectID:      proj.ID,
+		RepositoryID:   repo.ID,
+		InventoryID:    &inv.ID,
+		EnvironmentIDs: []int{env.ID},
+	})
+	require.NoError(t, err)
+
+	pool := TaskPool{
+		store:             store,
+		inventoryService:  &InventoryServiceMock{},
+		encryptionService: &EncryptionServiceMock{},
+	}
+
+	tsk := TaskRunner{
+		pool: &pool,
+		Task: db.Task{
+			TemplateID:  tpl.ID,
+			ProjectID:   proj.ID,
+			Environment: `{"comment": "Just do it!", "time": "2021-11-02"}`,
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	err = tsk.populateDetails()
+	require.NoError(t, err)
+}
+
+func TestTaskGetPlaybookArgs(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	inventoryID := 1
+
+	tsk := TaskRunner{
+		Task: db.Task{},
+		Inventory: db.Inventory{
+			SSHKeyID: &inventoryID,
+			SSHKey: db.AccessKey{
+				ID:   12345,
+				Type: db.AccessKeySSH,
+			},
+			Type: db.InventoryStatic,
+		},
+		Template: db.Template{
+			Playbook: "test.yml",
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	args, _, err := tsk.job.(*LocalExecutor).getPlaybookArgs("", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "--inventory /tmp/project_0/inventory_0 --extra-vars {\"texec_vars\":{\"task_details\":{\"commit_hash\":null,\"commit_message\":\"\",\"id\":0,\"inventory_id\":0,\"inventory_name\":\"\",\"repository_id\":0,\"repository_name\":\"\",\"url\":null,\"username\":\"\"}}} /tmp/project_0/repository_0_template_0_da39a3ee5e6b4b0d3255bfef95601890/test.yml", strings.Join(args, " "))
+}
+
+func TestTaskGetPlaybookArgs2(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	inventoryID := 1
+
+	tsk := TaskRunner{
+		Task: db.Task{},
+		Inventory: db.Inventory{
+			Type:     db.InventoryStatic,
+			SSHKeyID: &inventoryID,
+			SSHKey: db.AccessKey{
+				ID:   12345,
+				Type: db.AccessKeyLoginPassword,
+				LoginPassword: db.LoginPassword{
+					Password: "123456",
+					Login:    "root",
+				},
+			},
+		},
+		Template: db.Template{
+			Playbook: "test.yml",
+		},
+	}
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	args, _, err := tsk.job.(*LocalExecutor).getPlaybookArgs("", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "--inventory /tmp/project_0/inventory_0 --extra-vars {\"texec_vars\":{\"task_details\":{\"commit_hash\":null,\"commit_message\":\"\",\"id\":0,\"inventory_id\":0,\"inventory_name\":\"\",\"repository_id\":0,\"repository_name\":\"\",\"url\":null,\"username\":\"\"}}} /tmp/project_0/repository_0_template_0_da39a3ee5e6b4b0d3255bfef95601890/test.yml", strings.Join(args, " "))
+}
+
+func TestTaskGetPlaybookArgs3(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	inventoryID := 1
+
+	tsk := TaskRunner{
+		Task: db.Task{},
+		Inventory: db.Inventory{
+			Type:        db.InventoryStatic,
+			BecomeKeyID: &inventoryID,
+			BecomeKey: db.AccessKey{
+				ID:   12345,
+				Type: db.AccessKeyLoginPassword,
+				LoginPassword: db.LoginPassword{
+					Password: "123456",
+					Login:    "root",
+				},
+			},
+		},
+		Template: db.Template{
+			Playbook: "test.yml",
+		},
+	}
+
+	tsk.job = &LocalExecutor{
+		Task:        tsk.Task,
+		Template:    tsk.Template,
+		Inventory:   tsk.Inventory,
+		Repository:  tsk.Repository,
+		Environment: tsk.Environment,
+		Logger:      &tsk,
+		App: &db_lib.AnsibleApp{
+			Template:   tsk.Template,
+			Repository: tsk.Repository,
+			Logger:     &tsk,
+			Playbook: &db_lib.AnsiblePlaybook{
+				Logger:     &tsk,
+				TemplateID: tsk.Template.ID,
+				Repository: tsk.Repository,
+			},
+		},
+	}
+
+	args, _, err := tsk.job.(*LocalExecutor).getPlaybookArgs("", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, "--inventory /tmp/project_0/inventory_0 --extra-vars {\"texec_vars\":{\"task_details\":{\"commit_hash\":null,\"commit_message\":\"\",\"id\":0,\"inventory_id\":0,\"inventory_name\":\"\",\"repository_id\":0,\"repository_name\":\"\",\"url\":null,\"username\":\"\"}}} /tmp/project_0/repository_0_template_0_da39a3ee5e6b4b0d3255bfef95601890/test.yml", strings.Join(args, " "))
+}
+
+func TestCheckTmpDir(t *testing.T) {
+	util.Config = &util.ConfigType{
+		TmpPath: "/tmp",
+	}
+
+	// It should be able to create a new dir inside the temp dir
+	dirName := path.Join(t.TempDir(), "tmp")
+	require.NoError(t, checkTmpDir(dirName))
+
+	// checking again for this directory should return no error, as it exists
+	require.NoError(t, checkTmpDir(dirName))
+
+	require.NoError(t, os.Chmod(dirName, os.FileMode(0550)))
+
+	stat, err := os.Stat(dirName)
+	require.NoError(t, err)
+	if stat.Mode() != os.FileMode(0550) {
+		t.Skip("file system does not support 0550 mode")
+	}
+
+	assert.Error(t, checkTmpDir(dirName+"/noway"), "should not be able to write in this folder")
+}
+
+func TestTaskRunner_populateTaskEnvironment(t *testing.T) {
+	tsk := TaskRunner{
+		Task: db.Task{
+			Environment: "{\"a\":11, \"b\": 22, \"c\": 33}",
+		},
+		Environment: db.Environment{
+			JSON: "{\"a\":1, \"d\": 4}",
+		},
+	}
+
+	err := tsk.populateTaskEnvironment()
+	require.NoError(t, err)
+
+	assert.Equal(t, "{\"a\":11,\"b\":22,\"c\":33,\"d\":4}", tsk.Environment.JSON)
+}
+
+// fakeWorkflowRepo answers GetWorkflowRunByID from a fixed run; every other
+// WorkflowManager method panics via the nil embedded interface.
+type fakeWorkflowRepo struct {
+	db.WorkflowManager
+	run   db.WorkflowRun
+	err   error
+	calls int
+}
+
+func (f *fakeWorkflowRepo) GetWorkflowRunByID(projectID int, runID int) (db.WorkflowRun, error) {
+	f.calls++
+	return f.run, f.err
+}
+
+func TestTaskRunner_populateWorkflowDetails(t *testing.T) {
+	runID := 42
+
+	t.Run("resolves the workflow template of the run", func(t *testing.T) {
+		repo := &fakeWorkflowRepo{run: db.WorkflowRun{ID: runID, ProjectID: 3, WorkflowTemplateID: 7}}
+		tr := TaskRunner{
+			Task: db.Task{ID: 1, ProjectID: 3, WorkflowRunID: &runID},
+			pool: &TaskPool{workflowRepo: repo},
+		}
+
+		require.NoError(t, tr.populateWorkflowDetails())
+
+		require.NotNil(t, tr.Task.WorkflowTemplateID)
+		assert.Equal(t, 7, *tr.Task.WorkflowTemplateID)
+		assert.Equal(t, 1, repo.calls)
+	})
+
+	t.Run("skips tasks outside a workflow", func(t *testing.T) {
+		repo := &fakeWorkflowRepo{}
+		tr := TaskRunner{
+			Task: db.Task{ID: 1, ProjectID: 3},
+			pool: &TaskPool{workflowRepo: repo},
+		}
+
+		require.NoError(t, tr.populateWorkflowDetails())
+
+		assert.Nil(t, tr.Task.WorkflowTemplateID)
+		assert.Equal(t, 0, repo.calls)
+	})
+
+	t.Run("skips when no workflow repo is wired", func(t *testing.T) {
+		tr := TaskRunner{
+			Task: db.Task{ID: 1, ProjectID: 3, WorkflowRunID: &runID},
+			pool: &TaskPool{},
+		}
+
+		require.NoError(t, tr.populateWorkflowDetails())
+
+		assert.Nil(t, tr.Task.WorkflowTemplateID)
+	})
+
+	t.Run("ignores an empty run from a stub store", func(t *testing.T) {
+		repo := &fakeWorkflowRepo{}
+		tr := TaskRunner{
+			Task: db.Task{ID: 1, ProjectID: 3, WorkflowRunID: &runID},
+			pool: &TaskPool{workflowRepo: repo},
+		}
+
+		require.NoError(t, tr.populateWorkflowDetails())
+
+		assert.Nil(t, tr.Task.WorkflowTemplateID)
+	})
+}

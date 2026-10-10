@@ -1,0 +1,27 @@
+version: "3.4"
+
+volumes:
+  mysql:
+
+services:
+  server:
+    environment:
+      TEXEC_DB_DIALECT: mysql
+      TEXEC_DB_HOST: db
+      TEXEC_DB_PORT: 3306
+      TEXEC_DB_USER: ${MYSQL_USERNAME:-texec}
+      TEXEC_DB_PASS: ${MYSQL_PASSWORD:-texec}
+      TEXEC_DB: ${MYSQL_DATABASE:-texec}
+    depends_on:
+      - db
+
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT:-root}
+      MYSQL_USER: ${MYSQL_USERNAME:-texec}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-texec}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-texec}
+    volumes:
+      - mysql:/var/lib/mysql

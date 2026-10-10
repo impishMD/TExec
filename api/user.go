@@ -1,0 +1,196 @@
+package api
+
+import (
+	"crypto/rand"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/impishMD/TExec/api/helpers"
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/pkg/tz"
+	"github.com/impishMD/TExec/services/audit"
+	"github.com/impishMD/TExec/util"
+	log "github.com/sirupsen/logrus"
+)
+
+type UserController struct{}
+
+func NewUserController() *UserController { return &UserController{} }
+
+func (c *UserController) GetUser(w http.ResponseWriter, r *http.Request) {
+	if u, exists := helpers.GetOkFromContext(r, "_user"); exists {
+		helpers.WriteJSON(w, http.StatusOK, u)
+		return
+	}
+
+	var user struct {
+		db.User
+		CanCreateProject bool `json:"can_create_project"`
+	}
+
+	user.User = *helpers.GetFromContext(r, "user").(*db.User)
+	user.CanCreateProject = user.Admin || util.Config.NonAdminCanCreateProject
+
+	helpers.WriteJSON(w, http.StatusOK, user)
+}
+
+// linkLdapIdentity attaches an LDAP identity to the current account.
+// Proof of ownership is a successful bind with the user's own LDAP credentials.
+func linkLdapIdentity(w http.ResponseWriter, r *http.Request) {
+	currentUser := helpers.GetFromContext(r, "user").(*db.User)
+
+	var creds struct {
+		Username string `json:"username" binding:"required"`
+		Password string `json:"password" binding:"required"`
+		Provider string `json:"provider"` // LDAP provider ID, default "ldap"
+	}
+	if !helpers.Bind(w, r, &creds) {
+		return
+	}
+
+	providerID := creds.Provider
+	if providerID == "" {
+		providerID = "ldap"
+	}
+
+	provider, ok := util.Config.GetLdapProvider(providerID)
+	if !ok {
+		helpers.WriteErrorStatus(w, "LDAP provider not found", http.StatusBadRequest)
+		return
+	}
+
+	ldapUser, userDN, err := tryFindLDAPUser(provider, creds.Username, creds.Password)
+	if err != nil || ldapUser == nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	if !ldapProfileMatchesTExecUser(*ldapUser, *currentUser) {
+		helpers.WriteErrorStatus(w, "LDAP directory profile does not match your account", http.StatusForbidden)
+		return
+	}
+
+	linked, err := linkExternalIdentity(helpers.Store(r), *currentUser, db.IdentityTypeLdap, providerID, userDN)
+	if err != nil {
+		switch {
+		case errors.Is(err, errIdentityLinkedToAnother):
+			helpers.WriteErrorStatus(w, "This LDAP account is already linked to another user.", http.StatusConflict)
+		case errors.Is(err, errProviderAlreadyLinked):
+			helpers.WriteErrorStatus(w, "Your account already has a linked LDAP identity. Unlink it first.", http.StatusConflict)
+		default:
+			log.WithError(err).WithFields(log.Fields{
+				"provider": providerID,
+				"user_dn":  userDN,
+				"context":  "ldap",
+			}).Warn("Failed to link LDAP identity")
+			helpers.WriteErrorStatus(w, "Failed to link LDAP account", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	if linked {
+		helpers.Audit(r).Record(r.Context(), audit.Event{
+			Kind:     audit.IAMExternalIdentityLink,
+			Target:   audit.UserTarget(currentUser.ID, currentUser.Username),
+			Metadata: audit.AuthMethodMetadata{Method: audit.LoginMethodLDAP, Provider: providerID},
+		})
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func getAPITokens(w http.ResponseWriter, r *http.Request) {
+	user := helpers.GetFromContext(r, "user").(*db.User)
+
+	tokens, err := helpers.Store(r).GetAPITokens(user.ID)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	for i := range tokens {
+		if len(tokens[i].ID) >= 8 {
+			tokens[i].ID = tokens[i].ID[:8]
+		}
+		// If ID is shorter than 8 chars, leave it as-is
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, tokens)
+}
+
+func createAPIToken(w http.ResponseWriter, r *http.Request) {
+	user := helpers.GetFromContext(r, "user").(*db.User)
+
+	var body struct {
+		Name      string     `json:"name"`
+		ExpiresAt *time.Time `json:"expires_at"`
+	}
+	if r.ContentLength > 0 {
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && err != io.EOF {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+	}
+	if body.ExpiresAt != nil && !body.ExpiresAt.After(tz.Now()) {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	tokenID := make([]byte, 32)
+	if _, err := io.ReadFull(rand.Reader, tokenID); err != nil {
+		panic(err)
+	}
+
+	token, err := helpers.Store(r).CreateAPIToken(db.APIToken{
+		ID:        strings.ToLower(base64.URLEncoding.EncodeToString(tokenID)),
+		UserID:    user.ID,
+		Expired:   false,
+		ExpiresAt: body.ExpiresAt,
+		Name:      body.Name,
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	helpers.Audit(r).Record(r.Context(), audit.Event{
+		Kind:   audit.IAMAPITokenCreate,
+		Target: &audit.Target{Type: audit.TargetAPIToken, ID: audit.TokenFingerprint(token.ID), Name: token.Name},
+	})
+
+	helpers.WriteJSON(w, http.StatusCreated, token)
+}
+
+func deleteAPIToken(w http.ResponseWriter, r *http.Request) {
+	user := helpers.GetFromContext(r, "user").(*db.User)
+
+	tokenID := mux.Vars(r)["token_id"]
+
+	tokens, err := helpers.Store(r).GetAPITokensByPrefix(user.ID, tokenID)
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	for _, token := range tokens {
+		err = helpers.Store(r).DeleteAPIToken(user.ID, token.ID)
+		if errors.Is(err, db.ErrNotFound) {
+			continue
+		}
+		if err != nil {
+			helpers.WriteError(w, err)
+			return
+		}
+		helpers.Audit(r).Record(r.Context(), audit.Event{
+			Kind:   audit.IAMAPITokenDelete,
+			Target: &audit.Target{Type: audit.TargetAPIToken, ID: audit.TokenFingerprint(token.ID), Name: token.Name},
+		})
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

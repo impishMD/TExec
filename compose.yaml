@@ -1,0 +1,19 @@
+name: texec
+services:
+  texec:
+    image: ${TEXEC_IMAGE:-impishmd/texec}:${TEXEC_VERSION:-latest}
+    restart: unless-stopped
+    ports: ["${TEXEC_BIND_ADDRESS:-127.0.0.1}:3000:3000"]
+    environment:
+      TEXEC_DB_DIALECT: sqlite
+      TEXEC_ADMIN: ${TEXEC_ADMIN:-admin}
+      TEXEC_ADMIN_NAME: ${TEXEC_ADMIN_NAME:-Administrator}
+      TEXEC_ADMIN_EMAIL: ${TEXEC_ADMIN_EMAIL:-admin@localhost}
+      TEXEC_ADMIN_PASSWORD: ${TEXEC_ADMIN_PASSWORD:?Set TEXEC_ADMIN_PASSWORD in .env}
+      TEXEC_ACCESS_KEY_ENCRYPTION: ${TEXEC_ACCESS_KEY_ENCRYPTION:?Set a base64 32-byte encryption key in .env}
+    volumes:
+      - texec-config:/etc/texec
+      - texec-data:/var/lib/texec
+volumes:
+  texec-config:
+  texec-data:

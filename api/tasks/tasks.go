@@ -1,0 +1,116 @@
+package tasks
+
+import (
+	"net/http"
+
+	"github.com/impishMD/TExec/pkg/task_logger"
+
+	"github.com/impishMD/TExec/api/helpers"
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/services/audit"
+	task2 "github.com/impishMD/TExec/services/tasks"
+)
+
+func TaskMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		taskID, ok := helpers.GetIntParamOrAbort("task_id", w, r)
+		if !ok {
+			return
+		}
+
+		r = helpers.SetContextValue(r, "task_id", taskID)
+		next.ServeHTTP(w, r)
+	})
+}
+
+type taskLocation string
+
+const (
+	taskQueue   taskLocation = "queue"
+	taskRunning taskLocation = "running"
+)
+
+type taskRes struct {
+	TaskID      int                    `json:"task_id"`
+	ProjectID   int                    `json:"project_id"`
+	Username    string                 `json:"username,omitempty"`
+	RunnerID    *int                   `json:"runner_id,omitempty"`
+	Status      task_logger.TaskStatus `json:"status"`
+	Location    taskLocation           `json:"location"`
+	RunnerName  string                 `json:"runner_name,omitempty"`
+	ProjectName string                 `json:"project_name,omitempty"`
+}
+
+func GetTasks(w http.ResponseWriter, r *http.Request) {
+	pool := helpers.GetFromContext(r, "task_pool").(*task2.TaskPool)
+
+	res := []taskRes{}
+
+	for _, task := range pool.GetQueuedTasks() {
+		res = append(res, taskRes{
+			TaskID:    task.Task.ID,
+			ProjectID: task.Task.ProjectID,
+			RunnerID:  task.Task.RunnerID,
+			Username:  task.Username,
+			Status:    task.Task.Status,
+			Location:  taskQueue,
+		})
+	}
+
+	for _, task := range pool.GetRunningTasks() {
+		res = append(res, taskRes{
+			TaskID:    task.Task.ID,
+			ProjectID: task.Task.ProjectID,
+			RunnerID:  task.Task.RunnerID,
+			Username:  task.Username,
+			Status:    task.Task.Status,
+			Location:  taskRunning,
+		})
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, res)
+}
+
+func DeleteTask(w http.ResponseWriter, r *http.Request) {
+
+	taskID := helpers.GetFromContext(r, "task_id").(int)
+
+	pool := helpers.GetFromContext(r, "task_pool").(*task2.TaskPool)
+
+	var task *db.Task
+
+	for _, t := range pool.GetQueuedTasks() {
+		if t.Task.ID == taskID {
+			task = &t.Task
+			break
+		}
+	}
+
+	if task == nil {
+		for _, t := range pool.GetRunningTasks() {
+			if t.Task.ID == taskID {
+				task = &t.Task
+				break
+			}
+		}
+	}
+
+	if task != nil {
+		changed, err := pool.StopTask(*task, false)
+		if err != nil {
+			helpers.WriteErrorStatus(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if changed {
+			// This admin endpoint stops the task, it does not delete it.
+			helpers.Audit(r).Record(r.Context(), audit.Event{
+				Kind:      audit.TaskControlStop,
+				Target:    audit.ResourceTarget(audit.TargetTask, task.ID, ""),
+				ProjectID: task.ProjectID,
+				Metadata:  audit.TaskMetadata{TemplateID: task.TemplateID},
+			})
+		}
+	}
+
+	helpers.WriteJSON(w, http.StatusNoContent, nil)
+}

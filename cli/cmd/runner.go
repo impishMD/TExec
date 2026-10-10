@@ -1,0 +1,26 @@
+package cmd
+
+import (
+	"os"
+
+	"github.com/impishMD/TExec/pkg/ssh"
+	"github.com/impishMD/TExec/services/runners"
+	"github.com/spf13/cobra"
+)
+
+func createRunnerJobPool() *runners.JobPool {
+	return runners.NewJobPool(&ssh.KeyInstaller{})
+}
+
+func init() {
+	rootCmd.AddCommand(runnerCmd)
+}
+
+var runnerCmd = &cobra.Command{
+	Use:   "runner",
+	Short: "Run in runner mode",
+	Run: func(cmd *cobra.Command, args []string) {
+		_ = cmd.Help()
+		os.Exit(0)
+	},
+}

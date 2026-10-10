@@ -1,0 +1,301 @@
+package tasks
+
+import "sync"
+
+// TaskStopBroadcaster is optionally implemented by a TaskStateStore to relay
+// force-stop requests to the node that owns a task (HA). Callers must
+// type-assert, so stores that do not implement it (the in-memory store, where
+// every task is local) are unaffected.
+type TaskStopBroadcaster interface {
+	// BroadcastTaskStop asks every other node to force-stop the task if it
+	// owns it locally (queued or running). Fire-and-forget fast path: the
+	// DB status sweep and the orphan cleaner remain the at-least-once backstops.
+	BroadcastTaskStop(taskID int)
+	// SetTaskStopHandler registers the callback invoked when another node
+	// broadcasts a stop for a task.
+	SetTaskStopHandler(handler func(taskID int))
+}
+
+// TaskRunnerHydrator constructs a TaskRunner for an existing task
+// identified by taskID and projectID without starting it.
+type TaskRunnerHydrator func(taskID int, projectID int) (*TaskRunner, error)
+
+// TaskStateStore defines pluggable storage for task pool state
+type TaskStateStore interface {
+	// Start allows the store to initialize, restore its in-memory
+	// pointers from the underlying backend, and start background
+	// sync listeners (e.g., Redis Pub/Sub). Implementations may no-op.
+	Start(hydrator TaskRunnerHydrator) error
+
+	// Queue operations
+	Enqueue(task *TaskRunner)
+	DequeueAt(index int) error
+	QueueRange() []*TaskRunner
+	QueueGet(index int) *TaskRunner
+	QueueLen() int
+
+	// ClaimAndDequeue atomically claims a task for this node and removes it
+	// from the waiting queue, addressed by ID (never by list position).
+	// Returns true iff this node now exclusively owns the task and it has been
+	// removed from the queue. On false the queue is left untouched. This is the
+	// only safe way to pull a task for execution when multiple HA nodes share
+	// one queue: position-based claim+dequeue races as the shared list shifts.
+	ClaimAndDequeue(taskID int) bool
+
+	// DequeueByID removes a task from the queue by value (task ID), avoiding
+	// the index races inherent to DequeueAt under concurrent multi-node access.
+	DequeueByID(taskID int)
+
+	// Running tasks map operations
+	SetRunning(task *TaskRunner)
+	DeleteRunning(taskID int)
+	RunningRange() []*TaskRunner
+	RunningCount() int
+
+	// OwnedRunningRange returns the running tasks this node is responsible
+	// for. The in-memory store owns everything; the HA store filters the
+	// shared running set by the per-task claim value (the owning node's ID),
+	// so each cluster node reconciles only its own tasks instead of every
+	// node scanning the whole cluster. Tasks whose claim expired (dead owner)
+	// are owned by nobody — the HA orphan cleaner reconciles those.
+	OwnedRunningRange() []*TaskRunner
+
+	// Active-by-project operations
+	AddActive(projectID int, task *TaskRunner)
+	RemoveActive(projectID int, taskID int)
+	GetActive(projectID int) []*TaskRunner
+	ActiveCount(projectID int) int
+
+	// Aliases operations
+	SetAlias(alias string, task *TaskRunner)
+	GetByAlias(alias string) *TaskRunner
+	DeleteAlias(alias string)
+
+	// Distributed claim to ensure single runner starts a task
+	TryClaim(taskID int) bool
+	DeleteClaim(taskID int)
+
+	// TryFinalize attempts to acquire a cluster-wide finalization lock for a
+	// remote task. Returns true iff this node should run FinalizeRemoteTask
+	// (webhook, autorun, pool cleanup). Redis-backed stores should use SETNX
+	// (or equivalent) keyed by task ID; the in-memory store deduplicates within
+	// a single process only.
+	TryFinalize(taskID int) bool
+	DeleteFinalize(taskID int)
+
+	// UpdateRuntimeFields persists transient fields of TaskRunner so
+	// they can be restored after restart in HA mode.
+	UpdateRuntimeFields(task *TaskRunner)
+
+	// LoadRuntimeFields fills runtime fields (RunnerID, Username, IncomingVersion, Alias)
+	// from the backend into the provided task. No-op if not supported.
+	LoadRuntimeFields(task *TaskRunner)
+}
+
+// MemoryTaskStateStore is an in-memory implementation of TaskStateStore
+type MemoryTaskStateStore struct {
+	mu         sync.RWMutex
+	queue      []*TaskRunner
+	running    map[int]*TaskRunner
+	activeProj map[int]map[int]*TaskRunner // projectID -> taskID -> task
+	aliases    map[string]*TaskRunner
+	finalizing sync.Map // taskID -> struct{}; per-process FinalizeRemoteTask guard
+}
+
+func NewMemoryTaskStateStore() *MemoryTaskStateStore {
+	return &MemoryTaskStateStore{
+		queue:      make([]*TaskRunner, 0),
+		running:    make(map[int]*TaskRunner),
+		activeProj: make(map[int]map[int]*TaskRunner),
+		aliases:    make(map[string]*TaskRunner),
+	}
+}
+
+// Start is a no-op for the in-memory store
+func (s *MemoryTaskStateStore) Start(_ TaskRunnerHydrator) error { return nil }
+
+// Claims always succeed in memory single-process mode
+func (s *MemoryTaskStateStore) TryClaim(_ int) bool { return true }
+func (s *MemoryTaskStateStore) DeleteClaim(_ int)   {}
+
+func (s *MemoryTaskStateStore) TryFinalize(taskID int) bool {
+	_, loaded := s.finalizing.LoadOrStore(taskID, struct{}{})
+	return !loaded
+}
+
+func (s *MemoryTaskStateStore) DeleteFinalize(taskID int) {
+	s.finalizing.Delete(taskID)
+}
+
+func (s *MemoryTaskStateStore) UpdateRuntimeFields(_ *TaskRunner) {}
+func (s *MemoryTaskStateStore) LoadRuntimeFields(_ *TaskRunner)   {}
+
+// Queue
+func (s *MemoryTaskStateStore) Enqueue(task *TaskRunner) {
+	s.mu.Lock()
+	s.queue = append(s.queue, task)
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) DequeueAt(index int) error {
+	s.mu.Lock()
+	if index < 0 || index >= len(s.queue) {
+		s.mu.Unlock()
+		return nil
+	}
+	s.queue = append(s.queue[:index], s.queue[index+1:]...)
+	s.mu.Unlock()
+	return nil
+}
+
+// ClaimAndDequeue removes the task with the given ID from the queue and marks
+// it running. In the single-process memory store there is no contention, so a
+// claim always succeeds as long as the task is still queued.
+func (s *MemoryTaskStateStore) ClaimAndDequeue(taskID int) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, t := range s.queue {
+		if t != nil && t.Task.ID == taskID {
+			s.queue = append(s.queue[:i], s.queue[i+1:]...)
+			s.running[t.Task.ID] = t
+			return true
+		}
+	}
+	return false
+}
+
+// DequeueByID removes the task with the given ID from the queue, if present.
+func (s *MemoryTaskStateStore) DequeueByID(taskID int) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for i, t := range s.queue {
+		if t != nil && t.Task.ID == taskID {
+			s.queue = append(s.queue[:i], s.queue[i+1:]...)
+			return
+		}
+	}
+}
+
+func (s *MemoryTaskStateStore) QueueRange() []*TaskRunner {
+	s.mu.RLock()
+	out := make([]*TaskRunner, len(s.queue))
+	copy(out, s.queue)
+	s.mu.RUnlock()
+	return out
+}
+
+func (s *MemoryTaskStateStore) QueueGet(index int) *TaskRunner {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if index < 0 || index >= len(s.queue) {
+		return nil
+	}
+	return s.queue[index]
+}
+
+func (s *MemoryTaskStateStore) QueueLen() int {
+	s.mu.RLock()
+	l := len(s.queue)
+	s.mu.RUnlock()
+	return l
+}
+
+// Running
+func (s *MemoryTaskStateStore) SetRunning(task *TaskRunner) {
+	s.mu.Lock()
+	s.running[task.Task.ID] = task
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) DeleteRunning(taskID int) {
+	s.mu.Lock()
+	delete(s.running, taskID)
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) RunningRange() []*TaskRunner {
+	s.mu.RLock()
+	res := make([]*TaskRunner, 0, len(s.running))
+	for _, t := range s.running {
+		res = append(res, t)
+	}
+	s.mu.RUnlock()
+	return res
+}
+
+// OwnedRunningRange: a single process owns every running task.
+func (s *MemoryTaskStateStore) OwnedRunningRange() []*TaskRunner {
+	return s.RunningRange()
+}
+
+func (s *MemoryTaskStateStore) RunningCount() int {
+	s.mu.RLock()
+	l := len(s.running)
+	s.mu.RUnlock()
+	return l
+}
+
+// Active by project
+func (s *MemoryTaskStateStore) AddActive(projectID int, task *TaskRunner) {
+	s.mu.Lock()
+	m, ok := s.activeProj[projectID]
+	if !ok {
+		m = make(map[int]*TaskRunner)
+		s.activeProj[projectID] = m
+	}
+	m[task.Task.ID] = task
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) RemoveActive(projectID int, taskID int) {
+	s.mu.Lock()
+	if s.activeProj[projectID] != nil {
+		delete(s.activeProj[projectID], taskID)
+		if len(s.activeProj[projectID]) == 0 {
+			delete(s.activeProj, projectID)
+		}
+	}
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) GetActive(projectID int) []*TaskRunner {
+	s.mu.RLock()
+	res := make([]*TaskRunner, 0)
+	if s.activeProj[projectID] != nil {
+		for _, t := range s.activeProj[projectID] {
+			res = append(res, t)
+		}
+	}
+	s.mu.RUnlock()
+	return res
+}
+
+func (s *MemoryTaskStateStore) ActiveCount(projectID int) int {
+	s.mu.RLock()
+	l := 0
+	if s.activeProj[projectID] != nil {
+		l = len(s.activeProj[projectID])
+	}
+	s.mu.RUnlock()
+	return l
+}
+
+// Aliases
+func (s *MemoryTaskStateStore) SetAlias(alias string, task *TaskRunner) {
+	s.mu.Lock()
+	s.aliases[alias] = task
+	s.mu.Unlock()
+}
+
+func (s *MemoryTaskStateStore) GetByAlias(alias string) *TaskRunner {
+	s.mu.RLock()
+	t := s.aliases[alias]
+	s.mu.RUnlock()
+	return t
+}
+
+func (s *MemoryTaskStateStore) DeleteAlias(alias string) {
+	s.mu.Lock()
+	delete(s.aliases, alias)
+	s.mu.Unlock()
+}

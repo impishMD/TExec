@@ -1,0 +1,315 @@
+<template xmlns:v-slot="http://www.w3.org/1999/XSL/Transform">
+  <div class="pb-3">
+    <v-row>
+      <v-col cols="12" md="6">
+        <v-card
+          v-if="template"
+          :color="$vuetify.theme.dark ? '#212121' : 'white'"
+          style="background: #8585850f"
+        >
+          <v-card-title>{{ $t('uiTemplateInfo') }}</v-card-title>
+          <v-card-text>
+            <v-simple-table class="TaskDetails__table">
+              <template v-slot:default>
+                <tbody>
+                <tr>
+                  <td><b>{{ $t('uiApp') }}</b></td>
+                  <td>{{ getAppTitle(template.app) }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('template') }}</b></td>
+                  <td>
+                    <RouterLink :to="`/project/${projectId}/templates/${template.id}`">
+                      {{ template.name }}
+                    </RouterLink>
+                  </td>
+                </tr>
+                </tbody>
+              </template>
+            </v-simple-table>
+          </v-card-text>
+        </v-card>
+      </v-col>
+
+      <v-col cols="12" md="6">
+        <v-card
+          v-if="item.commit_hash"
+          :color="$vuetify.theme.dark ? '#212121' : 'white'"
+          style="background: #8585850f"
+        >
+          <v-card-title>{{ $t('uiCommitInfo') }}</v-card-title>
+
+          <v-card-text>
+            <v-simple-table class="TaskDetails__table">
+              <template v-slot:default>
+                <tbody>
+                <tr>
+                  <td><b>{{ $t('uiMessage') }}</b></td>
+                  <td>{{ item.commit_message }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('uiHash') }}</b></td>
+                  <td>{{ item.commit_hash }}</td>
+                </tr>
+                </tbody>
+              </template>
+            </v-simple-table>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row>
+      <v-col cols="12" md="6">
+        <v-card
+          :color="$vuetify.theme.dark ? '#212121' : 'white'"
+          style="background: #8585850f"
+          class="mb-5"
+        >
+          <v-card-title>{{ $t('uiRunningInfo') }}</v-card-title>
+          <v-card-text>
+            <v-simple-table class="pa-0 TaskDetails__table">
+              <template v-slot:default>
+                <tbody>
+                <tr>
+                  <td><b>{{ $t('uiMessage') }}</b></td>
+                  <td>{{ item.message || '—' }}</td>
+                </tr>
+                <tr v-if="item.project_token_id">
+                  <td><b>{{ $t('uiToken') }}</b></td>
+                  <td>{{ item.project_token_name }}</td>
+                </tr>
+                <tr v-if="item.user_id != null">
+                  <td><b>{{ $t('author') }}</b></td>
+                  <td>{{ user?.name || '—' }}</td>
+                </tr>
+                <tr v-else-if="item.integration_id != null">
+                  <td><b>{{ $t('integration') }}</b></td>
+                  <td>
+                    <router-link
+                      v-if="isReady(integration)"
+                      :to="`/project/${projectId}/integrations/${item.integration_id}`"
+                    >{{ integration.data.name }}</router-link>
+                    <span v-else>{{ originLabel(integration, item.integration_id) }}</span>
+                  </td>
+                </tr>
+                <tr v-else-if="item.schedule_id != null">
+                  <td><b>{{ $t('schedule') }}</b></td>
+                  <td>
+                    <!-- Schedules have no detail page, so link to the list. -->
+                    <router-link
+                      v-if="isReady(schedule)"
+                      :to="`/project/${projectId}/schedule`"
+                    >{{ schedule.data.name || $t('unnamedSchedule') }}</router-link>
+                    <span v-else>{{ originLabel(schedule, item.schedule_id) }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('uiCreated') }}</b></td>
+                  <td>{{ item.created | formatDate }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('started') }}</b></td>
+                  <td>{{ item.start | formatDate }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('end') }}</b></td>
+                  <td>{{ item.end | formatDate }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('duration') }}</b></td>
+                  <td>{{ [item.start, item.end] | formatMilliseconds }}</td>
+                </tr>
+                <tr v-if="item.used_runner_name">
+                  <td><b>{{ $t('uiRunner') }}</b></td>
+                  <td>{{ item.used_runner_name }}</td>
+                </tr>
+                </tbody>
+              </template>
+            </v-simple-table>
+          </v-card-text>
+        </v-card>
+      </v-col>
+      <v-col cols="12" md="6">
+        <v-card
+          v-if="item?.params"
+          :color="$vuetify.theme.dark ? '#212121' : 'white'"
+          style="background: #8585850f"
+          class="mb-5"
+        >
+          <v-card-title>{{ $t('uiTaskParameters') }}</v-card-title>
+          <v-card-text>
+            <v-simple-table class="pa-0 TaskDetails__table">
+              <template v-slot:default>
+                <tbody>
+                <tr>
+                  <td><b>{{ $t('allow_override_branch') }}</b></td>
+                  <td>
+                    {{ item.get_branch || '—' }}
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('allowLimitInTask') }}</b></td>
+                  <td>
+                    <span v-if="Array.isArray(item.params.limit) && item.params.limit.length > 0">
+                      {{ item.params.limit.join(', ') }}</span>
+                    <span v-else>{{ $t('no') }}</span>
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('debug') }}</b></td>
+                  <td>
+                    {{ item.params.debug ? $t('yes') : $t('no') }}
+                  </td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('uiDebugLevel') }}</b></td>
+                  <td>{{ item.params.debug_level || '—' }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('diff') }}</b> <code>--diff</code></td>
+                  <td>{{ item.params.diff ? $t('yes') : $t('no') }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('dryRun') }}</b> <code>--check</code></td>
+                  <td>{{ item.params.dry_run ? $t('yes') : $t('no') }}</td>
+                </tr>
+                <tr>
+                  <td><b>{{ $t('uiEnvironment') }}</b></td>
+                  <td>
+                    {{ !item.environment || item.environment === '{}' ? '—' : item.environment }}
+                  </td>
+                </tr>
+                </tbody>
+              </template>
+            </v-simple-table>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row v-if="parsedArtifacts">
+      <v-col cols="12">
+        <v-card
+          :color="$vuetify.theme.dark ? '#212121' : 'white'"
+          style="background: #8585850f"
+          class="mb-5"
+        >
+          <v-card-title>
+            {{ $t('workflowArtifacts') }}
+            <v-tooltip bottom max-width="320">
+              <template v-slot:activator="{ on, attrs }">
+                <v-icon small class="ml-2" v-bind="attrs" v-on="on">
+                  mdi-information-outline
+                </v-icon>
+              </template>
+              <span>{{ $t('workflowArtifactsHint') }}</span>
+            </v-tooltip>
+          </v-card-title>
+          <v-card-text>
+            <pre class="TaskDetails__artifacts">{{ formattedArtifacts }}</pre>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+  </div>
+</template>
+
+<style lang="scss">
+.TaskDetails__table {
+  background-color: transparent !important;
+  .v-data-table__wrapper {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+
+.TaskDetails__artifacts {
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  margin: 0;
+}
+
+</style>
+
+<script>
+
+import ProjectMixin from '@/components/ProjectMixin';
+import AppsMixin from '@/components/AppsMixin';
+
+export default {
+  props: {
+    item: Object,
+    user: Object,
+    // { status: 'loading' | 'ready' | 'missing' | 'error', data } for the
+    // schedule or integration that started the task; null when a person did.
+    schedule: Object,
+    integration: Object,
+    projectId: Number,
+  },
+
+  mixins: [ProjectMixin, AppsMixin],
+
+  data() {
+    return {
+      template: null,
+    };
+  },
+
+  watch: {
+    async item() {
+      if (this.item?.template_id !== this.template?.id) {
+        await this.loadData();
+      }
+    },
+  },
+
+  computed: {
+    parsedArtifacts() {
+      const raw = this.item?.artifacts;
+      if (raw == null || raw === '') return null;
+      if (typeof raw === 'object') {
+        return Object.keys(raw).length === 0 ? null : raw;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+            && Object.keys(parsed).length > 0) {
+          return parsed;
+        }
+        return null;
+      } catch (e) {
+        return null;
+      }
+    },
+    formattedArtifacts() {
+      return this.parsedArtifacts ? JSON.stringify(this.parsedArtifacts, null, 2) : '';
+    },
+  },
+
+  async created() {
+    await this.loadData();
+  },
+
+  methods: {
+    isReady(origin) {
+      return origin != null && origin.status === 'ready';
+    },
+
+    // Only a confirmed 404 says "deleted"; while loading or after an unrelated
+    // failure the id alone is all we can honestly show.
+    originLabel(origin, id) {
+      if (origin != null && origin.status === 'missing') {
+        return this.$t('deletedOrigin', { id });
+      }
+      return `#${id}`;
+    },
+
+    async loadData() {
+      this.template = await this.loadProjectResource('templates', this.item.template_id);
+    },
+  },
+};
+</script>

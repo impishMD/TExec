@@ -1,0 +1,14 @@
+version: "3.4"
+
+services:
+  runner:
+    image: docker.io/impishmd/texec:${TEXEC_VERSION:-latest}-runner
+    restart: always
+    environment:
+      TEXEC_WEB_ROOT: ${TEXEC_WEB_ROOT:-http://server:3000}
+      TEXEC_RUNNER_API_URL: ${TEXEC_RUNNER_API_URL:-http://server:3000/internal}
+      TEXEC_RUNNER_REGISTRATION_TOKEN: ${TEXEC_RUNNER_REGISTRATION_TOKEN:-H1wDyorbg6gTSwJlVwle2Fne}
+
+  server:
+    environment:
+      TEXEC_RUNNER_REGISTRATION_TOKEN: ${TEXEC_RUNNER_REGISTRATION_TOKEN:-H1wDyorbg6gTSwJlVwle2Fne}

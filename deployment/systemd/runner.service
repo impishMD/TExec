@@ -1,0 +1,15 @@
+[Unit]
+Description=TExec Runner
+Requires=network.target
+
+[Service]
+EnvironmentFile=/etc/texec/env
+ExecStart=/usr/bin/texec runner start --config ${TEXEC_CONFIG}
+ExecReload=/bin/kill -HUP $MAINPID
+User=texec
+Group=texec
+Restart=always
+RestartSec=3s
+
+[Install]
+WantedBy=multi-user.target

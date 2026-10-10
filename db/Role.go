@@ -1,0 +1,48 @@
+package db
+
+import (
+	"regexp"
+	"unicode/utf8"
+
+	"github.com/impishMD/TExec/pkg/common_errors"
+)
+
+type Role struct {
+	Slug        string                `db:"slug" json:"slug" backup:"-"`
+	Name        string                `db:"name" json:"name"`
+	Permissions ProjectUserPermission `db:"permissions" json:"permissions"`
+	ProjectID   *int                  `db:"project_id" json:"project_id"`
+}
+
+const KnownRolePermissions = CanRunProjectTasks | CanUpdateProject | CanManageProjectResources | CanManageProjectUsers
+
+var roleSlugPattern = regexp.MustCompile(`^[a-z0-9_-]{1,100}$`)
+
+func ValidateRole(role Role) error {
+	if role.Name == "" {
+		return &common_errors.ValidationError{Message: "Role name cannot be empty"}
+	}
+	if role.Slug == "" {
+		return &common_errors.ValidationError{Message: "Role slug cannot be empty"}
+	}
+	if !roleSlugPattern.MatchString(role.Slug) || utf8.RuneCountInString(role.Name) > 100 {
+		return common_errors.NewValidationError("Role slug must use lowercase letters, numbers, hyphens or underscores; name and slug must not exceed 100 characters")
+	}
+	// Built-in role slugs are reserved. Allowing a custom role to reuse one lets
+	// it shadow the built-in role and escalate the permissions of its members.
+	if ProjectUserRole(role.Slug).IsValid() {
+		return &common_errors.ValidationError{Message: "Role slug is reserved and cannot be used: " + role.Slug}
+	}
+	if role.Permissions&^KnownRolePermissions != 0 {
+		return &common_errors.ValidationError{Message: "Role permissions contain unknown bits"}
+	}
+	return nil
+}
+
+type TemplateRolePerm struct {
+	ID          int                   `db:"id" json:"id"`
+	RoleSlug    string                `db:"role_slug" json:"role_slug"`
+	TemplateID  int                   `db:"template_id" json:"template_id"`
+	ProjectID   int                   `db:"project_id" json:"project_id"`
+	Permissions ProjectUserPermission `db:"permissions" json:"permissions"`
+}

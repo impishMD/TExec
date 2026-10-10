@@ -1,0 +1,139 @@
+<template>
+  <v-form
+    ref="form"
+    lazy-validation
+    v-model="formValid"
+    v-if="item"
+  >
+    <v-alert
+      :value="formError"
+      color="error"
+      class="pb-2"
+    >{{ formError }}
+    </v-alert>
+    <v-text-field
+      v-model="item.name"
+      :label="$t('name')"
+      :rules="[v => !!v || $t('name_required')]"
+      required
+      :disabled="formSaving"
+      outlined
+      dense
+    ></v-text-field>
+
+    <v-divider class="mb-5" />
+
+    <div>
+      <v-select
+        v-model="item.match_type"
+        :label="$t('uiMatchOn')"
+        :items="matchTypes"
+        item-value="id"
+        item-text="text"
+        :rules="[v => !!v || $t('matchSourceRequired')]"
+        outlined
+        dense
+        required
+        :disabled="formSaving"
+      ></v-select>
+      <v-select
+        v-model="item.body_data_type"
+        v-if="item.match_type == 'body'"
+        :label="$t('uiBodyDataFormat')"
+        :items="bodyDataFormats"
+        item-value="id"
+        item-text="text"
+        :rules="[v => !!v || $t('uiBodyFormatRequired')]"
+        outlined
+        dense
+        required
+        :disabled="formSaving"
+      ></v-select>
+      <v-text-field
+        v-model="item.key"
+        :label="$t('uiKey')"
+        :rules="[v => !!v || $t('key_required')]"
+        outlined
+        dense
+        required
+        :disabled="formSaving"
+      ></v-text-field>
+      <v-select
+        v-model="item.method"
+        :label="$t('uiComparisonMethod')"
+        :items="methods"
+        item-value="id"
+        item-text="text"
+        :rules="[v => !!v || $t('uiComparisonRequired')]"
+        outlined
+        dense
+        required
+        :disabled="formSaving"
+      ></v-select>
+      <v-text-field
+        v-model="item.value"
+        :label="$t('uiValue')"
+        :rules="[v => !!v || $t('valueRequired')]"
+        outlined
+        dense
+        required
+        :disabled="formSaving"
+      ></v-text-field>
+    </div>
+  </v-form>
+</template>
+<script>
+import ItemFormBase from '@/components/ItemFormBase';
+import IntegrationExtractorChildValueFormBase from './IntegrationExtractorChildValueFormBase';
+import { MATCHER_TYPE_ICONS, MATCHER_TYPE_TITLES } from '../lib/constants';
+
+export default {
+  mixins: [ItemFormBase, IntegrationExtractorChildValueFormBase],
+  data() {
+    return {
+      MATCHER_TYPE_ICONS,
+      MATCHER_TYPE_TITLES,
+      matchTypes: [{
+        id: 'body',
+        text: this.$t('uiBody'),
+      }, {
+        id: 'header',
+        text: this.$t('uiHeader'),
+      }],
+      bodyDataFormats: [{
+        id: 'json',
+        text: 'JSON',
+      }, {
+        id: 'string',
+        text: this.$t('uiString'),
+      }],
+      methods: [{
+        id: 'equals',
+        text: '==',
+      }, {
+        id: 'unequals',
+        text: '!=',
+      }, {
+        id: 'contains',
+        text: this.$t('uiContains'),
+      }],
+    };
+  },
+  computed: {
+    integrationId() {
+      if (/^-?\d+$/.test(this.$route.params.integrationId)) {
+        return parseInt(this.$route.params.integrationId, 10);
+      }
+      return this.$route.params.integrationId;
+    },
+  },
+  methods: {
+    getItemsUrl() {
+      return `/api/project/${this.projectId}/integrations/${this.integrationId}/matchers`;
+    },
+    getSingleItemUrl() {
+      return `/api/project/${this.projectId}/integrations/${this.integrationId}/matchers/${this.itemId}`;
+    },
+  },
+};
+</script>

@@ -1,0 +1,26 @@
+version: "3.4"
+
+volumes:
+  postgres:
+
+services:
+  server:
+    environment:
+      TEXEC_DB_DIALECT: postgres
+      TEXEC_DB_HOST: db
+      TEXEC_DB_PORT: 5432
+      TEXEC_DB_USER: ${POSTGRES_USERNAME:-texec}
+      TEXEC_DB_PASS: ${POSTGRES_PASSWORD:-texec}
+      TEXEC_DB: ${POSTGRES_DATABASE:-texec}
+    depends_on:
+      - db
+
+  db:
+    image: postgres:14.3
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USERNAME:-texec}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-texec}
+      POSTGRES_DB: ${POSTGRES_DATABASE:-texec}
+    volumes:
+      - postgres:/var/lib/postgresql

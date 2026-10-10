@@ -1,0 +1,20 @@
+version: "3.4"
+
+volumes:
+  server:
+
+services:
+  server:
+    image: docker.io/impishmd/texec:${TEXEC_VERSION:-latest}
+    restart: always
+    environment:
+      TEXEC_ADMIN_NAME: ${TEXEC_ADMIN_NAME:-Admin}
+      TEXEC_ADMIN: ${TEXEC_ADMIN_USERNAME:-admin}
+      TEXEC_ADMIN_PASSWORD: ${TEXEC_ADMIN_PASSWORD:-p455w0rd}
+      TEXEC_ADMIN_EMAIL: ${TEXEC_ADMIN_EMAIL:-admin@localhost}
+      TEXEC_WEB_ROOT: ${TEXEC_WEB_ROOT:-http://0.0.0.0:3000}
+      TEXEC_ACCESS_KEY_ENCRYPTION: ${TEXEC_ACCESS_KEY_ENCRYPTION:-IlRqgrrO5Gp27MlWakDX1xVrPv4jhoUx+ARY+qGyDxQ=}
+    volumes:
+      - server:/var/lib/texec
+    ports:
+      - "3000:3000"

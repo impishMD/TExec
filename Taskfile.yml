@@ -1,0 +1,33 @@
+version: '3'
+
+tasks:
+  deps:
+    cmds: ['make deps']
+  deps:be:
+    cmds: ['go mod download']
+  deps:fe:
+    dir: web
+    cmds: ['npm ci --no-audit --no-fund']
+  build:
+    cmds: ['make build']
+  build:fe:
+    cmds: ['make frontend']
+  build:be:
+    cmds: ['make backend']
+  test:
+    cmds: ['make test']
+  lint:
+    cmds: ['make lint']
+  docs:gen:
+    cmds: ['make docs']
+  docs:check:
+    cmds: ['make docs-check']
+  docker:build:
+    cmds: ['make container']
+  release:test:
+    cmds: ['make release-snapshot']
+  dredd:goodman:
+    cmds: ['go install github.com/snikch/goodman/cmd/goodman@latest']
+  dredd:hooks:
+    dir: .dredd/hooks
+    cmds: ['go build -o ../compiled_hooks']

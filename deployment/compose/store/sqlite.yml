@@ -1,0 +1,12 @@
+version: "3.4"
+
+volumes:
+  sqlite:
+
+services:
+  server:
+    environment:
+      TEXEC_DB_DIALECT: sqlite
+      TEXEC_DB_PATH: /var/lib/database
+    volumes:
+      - sqlite:/var/lib/database

@@ -1,0 +1,6 @@
+version: "3.4"
+
+services:
+  runner:
+    volumes:
+      - ${TEXEC_RUNNER_LOCAL_CONFIG:-runner.json}:/etc/texec/config.json:Z

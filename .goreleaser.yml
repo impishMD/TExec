@@ -1,0 +1,69 @@
+version: 2
+project_name: texec
+before:
+  hooks:
+    - make frontend
+builds:
+  - id: texec
+    binary: texec
+    main: ./cli
+    env: [CGO_ENABLED=0]
+    tags: [netgo]
+    flags: [-trimpath]
+    ldflags:
+      - -s -w -X github.com/impishMD/TExec/util.Ver=v{{ .Version }} -X github.com/impishMD/TExec/util.Commit={{ .ShortCommit }} -X github.com/impishMD/TExec/util.Date={{ .Date }}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+archives:
+  - formats: [tar.gz]
+    name_template: 'texec_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    files:
+      - LICENSE
+      - NOTICE
+      - THIRD-PARTY-LICENSES.md
+      - README.md
+      - docs/**/*
+      - charts/texec/**/*
+      - deployment/systemd/*
+      - compose.yaml
+      - .env.example
+source:
+  enabled: true
+  name_template: 'texec_{{ .Version }}_source'
+checksum:
+  name_template: checksums.txt
+snapshot:
+  version_template: '{{ if .Env.TEXEC_SNAPSHOT_VERSION }}{{ .Env.TEXEC_SNAPSHOT_VERSION }}{{ else }}{{ .Version }}-dev{{ end }}'
+nfpms:
+  - id: texec
+    package_name: texec
+    file_name_template: 'texec_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+    homepage: https://github.com/impishMD/TExec
+    maintainer: impishMD <impishmd@users.noreply.github.com>
+    description: TExec — automation for Ansible, Terraform, OpenTofu and scripts.
+    license: MIT
+    formats: [deb, rpm]
+    bindir: /usr/bin
+    dependencies: [git, openssh-client]
+    overrides:
+      rpm:
+        dependencies: [git, openssh-clients, shadow-utils]
+      deb:
+        dependencies: [git, openssh-client, passwd]
+    contents:
+      - src: deployment/systemd/texec.service
+        dst: /usr/lib/systemd/system/texec.service
+      - src: LICENSE
+        dst: /usr/share/licenses/texec/LICENSE
+      - src: NOTICE
+        dst: /usr/share/licenses/texec/NOTICE
+      - src: THIRD-PARTY-LICENSES.md
+        dst: /usr/share/licenses/texec/THIRD-PARTY-LICENSES.md
+    scripts:
+      preinstall: deployment/packaging/preinstall.sh
+      postinstall: deployment/packaging/postinstall.sh
+release:
+  draft: true
+  name_template: '{{ .Tag }}'
+changelog:
+  disable: true

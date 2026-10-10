@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  ldap:
+    image: osixia/openldap:1.4.0
+#    container_name: openldap
+    environment:
+      LDAP_ORGANISATION: "Example Inc."
+      LDAP_DOMAIN: "example.org"
+      LDAP_ADMIN_PASSWORD: "admin"
+    ports:
+      - "389:389"
+      - "636:636"
+    volumes:
+      - ldap_data:/var/lib/ldap
+      - ldap_config:/etc/ldap/slapd.d
+
+  ldap_admin:
+    image: osixia/phpldapadmin:0.9.0
+#    container_name: phpldapadmin
+    environment:
+      PHPLDAPADMIN_LDAP_HOSTS: ldap
+    ports:
+      - "6443:443"
+    depends_on:
+      - ldap
+
+  texec:
+    image: impishmd/texec:latest
+#    container_name: texec
+    environment:
+      TEXEC_DB_DIALECT: "sqlite"
+      TEXEC_ADMIN_PASSWORD: "changeme"
+      TEXEC_ADMIN_NAME: "admin"
+      TEXEC_ADMIN_EMAIL: "admin@example.org"
+      TEXEC_LDAP_ACTIVATED: "yes"
+      TEXEC_LDAP_SERVER: "ldap:389"
+      TEXEC_LDAP_SEARCH_DN: "dc=example,dc=org"
+      TEXEC_LDAP_BIND_DN: "cn=admin,dc=example,dc=org"
+      TEXEC_LDAP_BIND_PASSWORD: "admin"
+      TEXEC_LDAP_SEARCH_FILTER: "(&(objectClass=inetOrgPerson)(uid=%s))"
+      TEXEC_NON_ADMIN_CAN_CREATE_PROJECT: "yes"
+    ports:
+      - "3000:3000"
+    volumes:
+      - texec_data:/var/lib/texec
+    depends_on:
+      - ldap
+
+volumes:
+  ldap_data:
+  ldap_config:
+  texec_data:

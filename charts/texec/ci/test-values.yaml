@@ -1,0 +1,23 @@
+fullnameOverride: texec-test
+secrets:
+  existingSecret: texec-test
+general:
+  host: http://texec-test:3000
+oidc:
+  enable: true
+  providers:
+    test:
+      displayName: Test SSO
+      providerUrl: http://127.0.0.1:5556
+      clientId: chart-test-client
+      existingSecret: texec-oidc
+image:
+  repository: texec
+  tag: helm-ci
+  pullPolicy: Never
+persistence:
+  size: 1Gi
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi

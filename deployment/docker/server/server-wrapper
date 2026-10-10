@@ -1,0 +1,312 @@
+#!/bin/sh
+set -e
+echoerr() { printf "%s\n" "$*" >&2; }
+
+#
+# Read environment variables from file if envrionment variable ${1}_FILE is set
+#
+file_env() {
+    local var=""
+    local fileVar=""
+
+    eval var="\$${1}"
+    eval fileVar="\$${1}_FILE"
+
+    local def="${2:-}"
+
+    if [ -n "${var:-}" ] && [ -n "${fileVar:-}" ]; then
+        echo >&2 "error: both ${1} and ${1}_FILE are set (but are exclusive)"
+        exit 1
+    fi
+
+    local val="$def"
+
+    if [ -n "${var:-}" ]; then
+        val="${var}"
+    elif [ -n "${fileVar:-}" ]; then
+        val="$(cat "${fileVar}")"
+    fi
+
+    if [ -n "${val:-}" ]; then
+        export "${1}"="$val"
+    fi
+
+    unset "${1}_FILE"
+}
+
+export TEXEC_CONFIG_PATH="${TEXEC_CONFIG_PATH:-/etc/texec}"
+export TEXEC_DB_PATH="${TEXEC_DB_PATH:-/var/lib/texec}"
+export TEXEC_DB_PORT="${TEXEC_DB_PORT:-}"
+
+file_env 'TEXEC_DB_USER'
+file_env 'TEXEC_DB_PASS'
+file_env 'TEXEC_ADMIN'
+export TEXEC_ADMIN_EMAIL="${TEXEC_ADMIN_EMAIL:-admin@localhost}"
+export TEXEC_ADMIN_NAME="${TEXEC_ADMIN_NAME:-TExec Admin}"
+file_env 'TEXEC_ADMIN_PASSWORD'
+export TEXEC_LDAP_ACTIVATED="${TEXEC_LDAP_ACTIVATED:-no}"
+export TEXEC_LDAP_HOST="${TEXEC_LDAP_HOST:-}"
+export TEXEC_LDAP_PORT="${TEXEC_LDAP_PORT:-}"
+export TEXEC_LDAP_DN_BIND="${TEXEC_LDAP_DN_BIND:-}"
+file_env 'TEXEC_LDAP_PASSWORD'
+export TEXEC_LDAP_DN_SEARCH="${TEXEC_LDAP_DN_SEARCH:-}"
+export TEXEC_LDAP_MAPPING_USERNAME="${TEXEC_LDAP_MAPPING_USERNAME:-uid}"
+export TEXEC_LDAP_MAPPING_FULLNAME="${TEXEC_LDAP_MAPPING_FULLNAME:-cn}"
+export TEXEC_LDAP_MAPPING_EMAIL="${TEXEC_LDAP_MAPPING_EMAIL:-mail}"
+file_env 'TEXEC_ACCESS_KEY_ENCRYPTION'
+
+
+[ -d "${TEXEC_CONFIG_PATH}" ] || mkdir -p "${TEXEC_CONFIG_PATH}" || {
+    echo "Can't create TExec config path ${TEXEC_CONFIG_PATH}."
+    exit 1
+}
+
+[ -d "${TEXEC_DB_PATH}" ] || mkdir -p "${TEXEC_DB_PATH}" || {
+    echo "Can't create TExec data path ${TEXEC_DB_PATH}."
+    exit 1
+}
+
+
+#
+# Extract database host and port from config.json if they are not set.
+# Set default TEXEC_DB_DIALECT and TEXEC_DB_HOST if empty.
+#
+if [ -z "${TEXEC_DB_DIALECT}" ]; then
+    if [ -f "${TEXEC_CONFIG_PATH}/config.json" ]; then
+        TEXEC_DB_DIALECT=$(cat "${TEXEC_CONFIG_PATH}/config.json" | jq '.dialect // ""' -r)
+    fi
+fi
+
+export TEXEC_DB_DIALECT="${TEXEC_DB_DIALECT:-mysql}"
+
+if [ -z "${TEXEC_DB_HOST}" ]; then
+    if [ -f "${TEXEC_CONFIG_PATH}/config.json" ]; then
+        TEXEC_DB_HOST=$(cat "${TEXEC_CONFIG_PATH}/config.json" | jq ".${TEXEC_DB_DIALECT}.host // \"\"" -r)
+    fi
+fi
+
+if [ -z "${TEXEC_DB_HOST}" ]; then
+    if [ "${TEXEC_DB_DIALECT}" = 'sqlite' ]; then
+        export TEXEC_DB_HOST=${TEXEC_DB_PATH}/database.sqlite
+    else
+        export TEXEC_DB_HOST="${TEXEC_DB_HOST:-0.0.0.0}"
+    fi
+fi
+
+
+#
+# Remove port number from TEXEC_DB_HOST and put it to TEXEC_DB_PORT
+#
+case "$TEXEC_DB_HOST" in
+  *:*)
+    TEXEC_DB_PORT=$(echo "$TEXEC_DB_HOST" | cut -d ':' -f 2)
+    TEXEC_DB_HOST=$(echo "$TEXEC_DB_HOST" | cut -d ':' -f 1)
+    ;;
+  *)
+esac
+
+
+#
+# Set TEXEC_DB_PORT if it is not set
+#
+if [ -z "${TEXEC_DB_PORT}" ]; then
+    case ${TEXEC_DB_DIALECT} in
+        mysql)
+            TEXEC_DB_PORT=3306
+            ;;
+        postgres)
+            TEXEC_DB_PORT=5432
+            ;;
+        sqlite)
+            ;;
+        *)
+            echoerr "Unknown database dialect: ${TEXEC_DB_DIALECT}"
+            exit 1
+            ;;
+    esac
+fi
+
+
+#
+# Ping database if it is not BoltDB
+#
+if [ "${TEXEC_DB_DIALECT}" != 'sqlite' ]; then
+    echoerr "Pinging database on ${TEXEC_DB_HOST} port ${TEXEC_DB_PORT}..."
+    TIMEOUT=30
+
+
+    while ! $(nc -z "$TEXEC_DB_HOST" "$TEXEC_DB_PORT") >/dev/null 2>&1; do
+        TIMEOUT=$(expr $TIMEOUT - 1)
+
+        if [ $TIMEOUT -eq 0 ]; then
+            echoerr "Could not connect to database server. Exiting."
+            exit 1
+        fi
+
+        echo -n "."
+        sleep 1
+    done
+
+    export TEXEC_DB_HOST="${TEXEC_DB_HOST}:${TEXEC_DB_PORT}"
+fi
+
+
+#
+# Generate new config.json if it does not exist
+#
+TEXEC_FIRST_RUN=no
+if [ ! -f "${TEXEC_CONFIG_PATH}/config.json" ]; then
+    TEXEC_FIRST_RUN=yes
+    echoerr "Generating setup file ${TMP_STDIN_CONFIG_FILE} ..."
+
+    TMP_STDIN_CONFIG_FILE=$(mktemp)
+
+
+    TEXEC_TMP_PATH=${TEXEC_TMP_PATH:-/tmp/texec}
+    [ -d "${TEXEC_TMP_PATH}" ] || mkdir -p "${TEXEC_TMP_PATH}" || {
+        echo "Can't create TExec tmp path ${TEXEC_TMP_PATH}."
+        exit 1
+    }
+
+
+    case ${TEXEC_DB_DIALECT} in
+        mysql)
+            TEXEC_DB_DIALECT_ID=1
+            ;;
+        postgres)
+            TEXEC_DB_DIALECT_ID=3
+            ;;
+        sqlite)
+            TEXEC_DB_DIALECT_ID=4
+            ;;
+        *)
+            echoerr "Unknown database dialect: ${TEXEC_DB_DIALECT}"
+            exit 1
+            ;;
+    esac
+
+
+    cat << EOF > "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_DB_DIALECT_ID}
+EOF
+
+    if [ "${TEXEC_DB_DIALECT}" = "sqlite" ]; then
+        cat << EOF >> "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_DB_HOST}
+EOF
+    else
+        cat << EOF >> "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_DB_HOST}
+${TEXEC_DB_USER}
+${TEXEC_DB_PASS}
+${TEXEC_DB:-texec}
+EOF
+    fi
+
+    cat << EOF >> "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_TMP_PATH}
+${TEXEC_WEB_ROOT:-}
+no
+no
+no
+no
+${TEXEC_LDAP_ACTIVATED}
+EOF
+
+    if [ "${TEXEC_LDAP_ACTIVATED}" = "yes" ]; then
+        cat << EOF >> "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_LDAP_HOST}:${TEXEC_LDAP_PORT}
+${TEXEC_LDAP_NEEDTLS:-no}
+${TEXEC_LDAP_DN_BIND}
+${TEXEC_LDAP_PASSWORD}
+${TEXEC_LDAP_DN_SEARCH}
+${TEXEC_LDAP_SEARCH_FILTER:-(uid=%s)}
+${TEXEC_LDAP_MAPPING_DN:-dn}
+${TEXEC_LDAP_MAPPING_USERNAME}
+${TEXEC_LDAP_MAPPING_FULLNAME}
+${TEXEC_LDAP_MAPPING_EMAIL}
+EOF
+    fi;
+
+    cat << EOF >> "${TMP_STDIN_CONFIG_FILE}"
+${TEXEC_CONFIG_PATH}
+${TEXEC_ADMIN}
+${TEXEC_ADMIN_EMAIL}
+${TEXEC_ADMIN_NAME}
+${TEXEC_ADMIN_PASSWORD}
+EOF
+
+
+    echoerr "Executing texec setup"
+    if test "$#" -ne 1; then
+        /usr/local/bin/texec setup - < "${TMP_STDIN_CONFIG_FILE}"
+    else
+        "$1" setup - < "${TMP_STDIN_CONFIG_FILE}"
+    fi
+
+    rm -f "${TMP_STDIN_CONFIG_FILE}"
+fi
+
+#
+# Install additional python dependencies
+#
+if test -f "${TEXEC_CONFIG_PATH}/requirements.txt"; then
+    echoerr "Installing additional python dependencies"
+    pip3 install --upgrade \
+        -r "${TEXEC_CONFIG_PATH}/requirements.txt"
+else
+    echoerr "No additional python dependencies to install"
+fi
+
+#
+# Migrate from BoltDB if TEXEC_MIGRATE_FROM_BOLTDB is set (first run only, SQLite only, skipped if DB file already exists)
+#
+case "${TEXEC_MIGRATE_FROM_BOLTDB:-}" in
+    [Tt][Rr][Uu][Ee]|[Yy][Ee][Ss])
+        TEXEC_MIGRATE_FROM_BOLTDB="${TEXEC_DB_PATH}/database.boltdb"
+        ;;
+esac
+
+if [ -n "${TEXEC_MIGRATE_FROM_BOLTDB:-}" ] && [ "${TEXEC_FIRST_RUN}" = "yes" ]; then
+    if [ "${TEXEC_DB_DIALECT}" != "sqlite" ]; then
+        echoerr "TEXEC_MIGRATE_FROM_BOLTDB is only supported with SQLite dialect, ignoring"
+    else
+        echoerr "Migrating from BoltDB: ${TEXEC_MIGRATE_FROM_BOLTDB}"
+        MIGRATE_ARGS="--from-boltdb=${TEXEC_MIGRATE_FROM_BOLTDB} --merge-existing-users"
+        if [ -n "${TEXEC_MIGRATE_SKIP_TASK_OUTPUT:-}" ]; then
+            MIGRATE_ARGS="${MIGRATE_ARGS} --skip-task-output"
+        fi
+        if test "$#" -ne 1; then
+            /usr/local/bin/texec migrate ${MIGRATE_ARGS} --config "${TEXEC_CONFIG_PATH}/config.json"
+        else
+            "$1" migrate ${MIGRATE_ARGS} --config "${TEXEC_CONFIG_PATH}/config.json"
+        fi
+    fi
+fi
+
+# Import project if environment variable TEXEC_IMPORT_PROJECT_FILE is defined.
+# Optionally use TEXEC_IMPORT_PROJECT_NAME to specify the project name.
+if [ -n "${TEXEC_IMPORT_PROJECT_FILE:-}" ] && [ "${TEXEC_FIRST_RUN}" = "yes" ]; then
+    echoerr "Importing project from ${TEXEC_IMPORT_PROJECT_FILE}"
+    IMPORT_ARGS="--file ${TEXEC_IMPORT_PROJECT_FILE}"
+    if [ -n "${TEXEC_IMPORT_PROJECT_NAME:-}" ]; then
+        echoerr "Using project name: ${TEXEC_IMPORT_PROJECT_NAME}"
+        IMPORT_ARGS="${IMPORT_ARGS} --project-name ${TEXEC_IMPORT_PROJECT_NAME}"
+    fi
+    if test "$#" -ne 1; then
+        /usr/local/bin/texec project import ${IMPORT_ARGS} --config "${TEXEC_CONFIG_PATH}/config.json" || echoerr "Project import failed"
+    else
+        "$1" project import ${IMPORT_ARGS} || echoerr "Project import failed"
+    fi
+fi
+
+
+#
+# Start TExec server
+#
+echoerr "Starting texec server"
+if test "$#" -ne 1; then
+    exec /usr/local/bin/texec server --config "${TEXEC_CONFIG_PATH}/config.json"
+else
+    exec "$@"
+fi

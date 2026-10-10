@@ -1,0 +1,25 @@
+version: "3.4"
+
+volumes:
+  dredd:
+
+services:
+  server:
+    environment:
+      TEXEC_ADMIN_PASSWORD: password
+      TEXEC_ADMIN_NAME: Developer
+      TEXEC_ADMIN_EMAIL: admin@localhost
+      TEXEC_ADMIN: admin
+      TEXEC_WEB_ROOT: http://0.0.0.0:3000
+
+  dredd:
+    build:
+      context: ../../../
+      dockerfile: deployment/docker/dredd/Dockerfile
+    command:
+      - --config
+      - .dredd/dredd.docker.yml
+    environment:
+      TEXEC_ACCESS_KEY_ENCRYPTION: ${TEXEC_ACCESS_KEY_ENCRYPTION:-IlRqgrrO5Gp27MlWakDX1xVrPv4jhoUx+ARY+qGyDxQ=}
+    volumes:
+      - dredd:/data

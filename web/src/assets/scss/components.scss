@@ -1,0 +1,73 @@
+.FieldTable {
+  .v-data-table__wrapper {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    td {
+      border-bottom: 0 !important;
+    }
+    td:last-child {
+      padding-right: 15px !important;
+    }
+    td:first-child {
+      padding-left: 5px !important;
+    }
+  }
+}
+
+.vue-codemirror {
+  border-radius: 6px !important;
+}
+
+.CodeMirror {
+  border-radius: 5px !important;
+}
+
+.PageAlert {
+  border-radius: 0;
+  .v-alert__content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+}
+
+.PageAlert--flat-top {
+  border-top-left-radius: 0 !important;
+  border-top-right-radius: 0 !important;
+}
+
+.TextInput {
+
+}
+
+.TextInput--no-legend {
+  legend {
+    width: 0 !important;
+  }
+
+  .v-label.v-label--active {
+    display: none;
+  }
+}
+
+.InputWithAppendedButton {
+  .v-input__append-outer {
+    margin: 0 !important;
+    .v-btn {
+      max-width: 40px;
+      min-width: 40px;
+      height: 40px;
+      padding-left: 0;
+      padding-right: 0;
+      border-top-left-radius: 0;
+      border-bottom-left-radius: 0;
+      border: 1px solid rgba(133, 133, 133, 0.4);
+      border-left: 0;
+    }
+  }
+  fieldset {
+    border-top-right-radius: 0 !important;
+    border-bottom-right-radius: 0 !important;
+  }
+}

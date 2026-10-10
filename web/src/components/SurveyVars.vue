@@ -1,0 +1,462 @@
+<template>
+  <div class="pb-6" style="margin-top: -10px;">
+    <v-dialog
+      v-model="editDialog"
+      hide-overlay
+      content-class="NestedDialog"
+      width="440"
+    >
+      <v-card @keydown.enter.prevent>
+        <v-card-title></v-card-title>
+        <v-card-text class="pb-0">
+          <v-form
+            ref="form"
+            lazy-validation
+            v-if="editedVar != null"
+            @submit.prevent="saveVar()"
+          >
+            <v-alert
+              :value="formError != null"
+              color="error"
+            >{{ formError }}
+            </v-alert>
+
+            <v-text-field
+              :label="$t('name2')"
+              v-model.trim="editedVar.name"
+              :rules="[(v) => !!v || $t('name_required')]"
+              required
+              dense
+              outlined
+            />
+
+            <v-text-field
+              :label="$t('title')"
+              v-model="editedVar.title"
+              :rules="[(v) => !!v || $t('title_required')]"
+              required
+              dense
+              outlined
+            />
+
+            <v-text-field
+              :label="$t('description')"
+              v-model="editedVar.description"
+              required
+              dense
+              outlined
+            />
+
+            <v-row>
+              <v-col cols="5">
+                <v-select
+                  v-model="editedVar.type"
+                  :label="$t('type')"
+                  :items="varTypes"
+                  item-value="id"
+                  item-text="name"
+                  dense
+                  outlined
+                ></v-select>
+              </v-col>
+              <v-col cols="7">
+                <v-select
+                  v-model="editedVar.target"
+                  :label="$t('survey_var_target')"
+                  :items="varTargets"
+                  item-value="id"
+                  item-text="name"
+                  dense
+                  outlined
+                ></v-select>
+              </v-col>
+            </v-row>
+
+            <v-card
+              v-if="editedVar.type === 'enum' || editedVar.type === 'select'"
+              style="background: var(--highlighted-card-bg-color)"
+              class="mb-4"
+            >
+
+              <v-card-text>
+                <v-data-table
+                  :items="editedValues"
+                  :items-per-page="-1"
+                  class="elevation-1 FieldTable"
+                  hide-default-footer
+                  :no-data-text="$t('noValues')"
+                >
+                  <template v-slot:item="props">
+                    <tr>
+                      <td class="pa-1">
+                        <v-text-field
+                          solo-inverted
+                          flat
+                          hide-details
+                          v-model="props.item.name"
+                          :label="$t('matchKey')"
+                          class="v-text-field--solo--no-min-height"
+                        ></v-text-field>
+                      </td>
+                      <td class="pa-1">
+                        <v-text-field
+                          solo-inverted
+                          flat
+                          hide-details
+                          v-model="props.item.value"
+                          :label="$t('matchValue')"
+                          class="v-text-field--solo--no-min-height"
+                        ></v-text-field>
+                      </td>
+                      <td style="width: 38px">
+                        <v-icon small class="pa-1" @click="removeEditedVarValue(props.item)">
+                          mdi-delete
+                        </v-icon>
+                      </td>
+                    </tr>
+                  </template>
+                </v-data-table>
+
+                <div class="text-right mt-2 mb-2">
+                  <v-btn color="primary" @click="addEditedVarValue()">{{ $t('uiAddValue') }}</v-btn>
+                </div>
+
+                <v-select
+                  v-model="editedVar.default_value"
+                  :label="$t('default_value')"
+                  :items="editedValues"
+                  item-value="value"
+                  item-text="name"
+                  clearable
+                  dense
+                  outlined
+                  hide-details
+                  :multiple="editedVar.type === 'select'"
+                  :chips="editedVar.type === 'select'"
+                >
+                  <template
+                    v-slot:selection="{ item, index }"
+                    v-if="editedVar.type === 'select'">
+                    <v-chip
+                      small
+                      close
+                      @click:close="removeDefaultItem(index)"
+                      >{{ selectedItemLabel(item) }}
+                    </v-chip>
+                  </template>
+                </v-select>
+              </v-card-text>
+            </v-card>
+
+            <v-text-field
+              type="number"
+              v-else-if="editedVar.type === 'int'"
+              :label="$t('default_value')"
+              v-model="editedVar.default_value"
+              dense
+              outlined
+            />
+
+            <v-textarea
+              v-else-if="editedVar.type === 'text'"
+              :label="$t('default_value')"
+              v-model="editedVar.default_value"
+              rows="3"
+              auto-grow
+              dense
+              outlined
+            />
+
+            <v-text-field
+              v-else-if="editedVar.type !== 'secret'"
+              :label="$t('default_value')"
+              v-model="editedVar.default_value"
+              dense
+              outlined
+            />
+          </v-form>
+        </v-card-text>
+        <v-card-actions class="py-0">
+          <v-checkbox
+            :label="$t('required')"
+            v-model="editedVar.required"
+            v-if="editedVar != null"
+            class="ml-1"
+          />
+          <v-spacer></v-spacer>
+          <v-btn color="primary" text @click="editDialog = false">
+            {{ $t('cancel') }}
+          </v-btn>
+          <v-btn color="primary" depressed @click="saveVar()">
+            {{ editedVarIndex == null ? $t('add') : $t('save') }}
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <fieldset
+      style="
+        padding: 0 10px 2px 10px;
+        border-width: 1px;
+        border-color: rgba(133, 133, 133, 0.4);
+        background-color: rgba(133, 133, 133, 0.1);
+        border-radius: 8px;
+        font-size: 12px;
+      "
+    >
+      <legend style="padding: 0 3px">{{ $t('surveyVariables') }}</legend>
+      <v-chip-group column style="margin-top: -4px">
+        <draggable
+          v-model="modifiedVars"
+          @end="onDragEnd"
+          :animation="200"
+          class="d-flex flex-wrap"
+          ghost-class="chip-ghost"
+        >
+          <v-chip
+            v-for="(v, i) in modifiedVars"
+            close
+            @click:close="deleteVar(i)"
+            :key="v.name"
+            @click="editVar(i)"
+            :color="v.type === 'int' ? '#61e2ff' : 'gray'"
+            class="draggable-chip"
+          >
+            {{ v.title }}
+          </v-chip>
+        </draggable>
+        <v-chip @click="editVar(null)">
+          + <span class="ml-1" v-if="modifiedVars.length === 0">{{ $t('addVariable') }}</span>
+        </v-chip>
+      </v-chip-group>
+    </fieldset>
+  </div>
+</template>
+<style lang="scss">
+.draggable-chip {
+  cursor: grab;
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.chip-ghost {
+  opacity: 0.5;
+}
+</style>
+<script>
+import draggable from 'vuedraggable';
+
+export default {
+  components: {
+    draggable,
+  },
+  props: {
+    vars: Array,
+  },
+  watch: {
+    vars(val) {
+      this.var = val || [];
+    },
+
+    'editedVar.type': {
+      handler(newType, oldType) {
+        if (!this.editedVar || newType === oldType) {
+          return;
+        }
+
+        if (newType === 'select') {
+          this.$set(this.editedVar, 'default_value', []);
+        } else {
+          this.$set(this.editedVar, 'default_value', '');
+        }
+
+        const isNotListType = newType !== 'enum' && newType !== 'select';
+        if (isNotListType) {
+          this.editedValues = [];
+          this.editedVar.values = this.editedValues;
+        }
+      },
+    },
+  },
+
+  created() {
+    this.modifiedVars = (this.vars || []).map((v) => ({ ...v }));
+  },
+
+  data() {
+    return {
+      editDialog: null,
+      editedVar: null,
+      editedValues: [],
+      editedVarIndex: null,
+      modifiedVars: null,
+      varTypes: [
+        {
+          id: '',
+          name: this.$t('uiString'),
+        },
+        {
+          id: 'int',
+          name: this.$t('integerType'),
+        },
+        {
+          id: 'secret',
+          name: this.$t('uiSecret'),
+        },
+        {
+          id: 'enum',
+          name: this.$t('enumType'),
+        },
+        {
+          id: 'text',
+          name: this.$t('textType'),
+        },
+        {
+          id: 'select',
+          name: this.$t('selectType'),
+        },
+      ],
+      varTargets: [
+        {
+          id: '',
+          name: this.$t('extraVariable'),
+        },
+        {
+          id: 'env',
+          name: this.$t('environmentVariable'),
+        },
+      ],
+      formError: null,
+    };
+  },
+  methods: {
+    addEditedVarValue() {
+      this.editedValues.push({
+        name: '',
+        value: '',
+      });
+    },
+
+    removeEditedVarValue(val) {
+      const i = this.editedValues.findIndex((v) => v.name === val.name);
+      if (i > -1) {
+        this.editedValues.splice(i, 1);
+      }
+    },
+
+    editVar(index) {
+      this.editedVar = index != null ? { ...this.modifiedVars[index] } : {};
+
+      if (!this.editedVar.target) {
+        this.editedVar.target = '';
+      }
+
+      this.editedValues = [];
+      this.editedValues.push(...(this.editedVar.values || []));
+      this.editedVar.values = this.editedValues;
+
+      this.editedVar.default_value = this.normalizeDefaultValue(
+        this.editedVar.type,
+        this.editedVar.default_value,
+      );
+
+      this.editedVarIndex = index;
+
+      if (this.$refs.form) {
+        this.$refs.form.resetValidation();
+      }
+
+      this.editDialog = true;
+    },
+
+    saveVar() {
+      this.formError = null;
+
+      if (!this.$refs.form.validate()) {
+        return;
+      }
+
+      if (this.editedVar.type === 'enum' || this.editedVar.type === 'select') {
+        if (this.editedValues.length === 0) {
+          this.formError = this.$t('choiceValuesRequired');
+          return;
+        }
+
+        const uniq = new Set(this.editedValues.map((v) => v.name));
+
+        if (this.editedValues.length !== uniq.size) {
+          this.formError = this.$t('choiceValuesUnique');
+          return;
+        }
+
+        this.editedValues.forEach((v) => {
+          if (v.name === '') {
+            this.formError = this.$t('valueNameRequired');
+          }
+        });
+
+        if (this.formError != null) {
+          return;
+        }
+      } else {
+        this.editedVar.values = [];
+      }
+
+      this.editedVar.default_value = this.normalizeDefaultValue(
+        this.editedVar.type,
+        this.editedVar.default_value,
+      );
+
+      if (this.editedVarIndex != null) {
+        this.modifiedVars[this.editedVarIndex] = this.editedVar;
+      } else {
+        this.modifiedVars.push(this.editedVar);
+      }
+
+      this.editDialog = false;
+      this.editedVar = null;
+      this.$emit('change', this.modifiedVars);
+    },
+
+    deleteVar(index) {
+      this.modifiedVars.splice(index, 1);
+      this.$emit('change', this.modifiedVars);
+    },
+
+    // remove one selected default item (for multiple select)
+    removeDefaultItem(index) {
+      if (!this.editedVar || !Array.isArray(this.editedVar.default_value)) {
+        return;
+      }
+
+      if (index >= 0 && index < this.editedVar.default_value.length) {
+        this.editedVar.default_value.splice(index, 1);
+      }
+    },
+
+    // label shown in selection chips - item could be the value or an object
+    selectedItemLabel(item) {
+      if (!item) return '';
+      if (typeof item === 'object' && item.name) return item.name;
+      const found = this.editedValues.find((v) => v.value === item || v.name === item);
+      return (found && found.name) || String(item);
+    },
+
+    normalizeDefaultValue(type, value) {
+      if (type === 'select') {
+        if (Array.isArray(value)) return value;
+        return value == null || value === '' ? [] : [value];
+      }
+      if (Array.isArray(value)) {
+        return value.length > 0 ? value[0] : '';
+      }
+      return value ?? '';
+    },
+
+    onDragEnd() {
+      this.$emit('change', this.modifiedVars);
+    },
+  },
+};
+</script>

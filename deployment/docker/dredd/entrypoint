@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+set -eo pipefail
+
+echo "---> Gen texec config"
+cat << EOF > /texec/.dredd/config.json
+{
+  "dialect": "${TEXEC_DB_DIALECT}",
+  "${TEXEC_DB_DIALECT}": ${TEXEC_DB_CONFIG},
+  "access_key_encryption": "${TEXEC_ACCESS_KEY_ENCRYPTION}"
+}
+EOF
+
+echo "---> Waiting for texec"
+while ! nc -z server 3000; do
+  sleep 1
+done
+
+echo "---> Start dredd server"
+sleep 5
+dredd $@

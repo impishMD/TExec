@@ -1,0 +1,63 @@
+file:
+  /usr/local/bin/runner-wrapper:
+    exists: true
+    owner: texec
+    group: root
+    filetype: file
+    contains:
+      # Data path must default from TEXEC_DATA_PATH, not tmp (runner token persistence).
+      - 'TEXEC_DATA_PATH="${TEXEC_DATA_PATH:-/var/lib/texec}"'
+  /usr/local/bin/texec:
+    exists: true
+    owner: texec
+    group: root
+    filetype: file
+
+package:
+  go:
+    installed: false
+  libc-dev:
+    installed: false
+  nodejs:
+    installed: false
+
+  curl:
+    installed: true
+  git:
+    installed: true
+  mysql-client:
+    installed: true
+  openssh-client-default:
+    installed: true
+  python3:
+    installed: true
+  py3-pip:
+    installed: true
+  rsync:
+    installed: true
+  sshpass:
+    installed: true
+  tar:
+    installed: true
+  tini:
+    installed: true
+  tzdata:
+    installed: true
+  unzip:
+    installed: true
+  wget:
+    installed: true
+  zip:
+    installed: true
+
+user:
+  texec:
+    exists: true
+    uid: 1001
+    gid: 0
+    home: /home/texec
+
+command:
+  texec:
+    exit-status: 0
+    timeout: 10000

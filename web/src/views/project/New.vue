@@ -1,0 +1,82 @@
+<template xmlns:v-slot="http://www.w3.org/1999/XSL/Transform">
+  <div>
+    <v-toolbar flat>
+      <v-app-bar-nav-icon @click="showDrawer()"></v-app-bar-nav-icon>
+      <v-toolbar-title>{{ $t('newProject') }}</v-toolbar-title>
+      <v-spacer></v-spacer>
+    </v-toolbar>
+
+    <v-divider/>
+
+    <div class="texec-create-project">
+      <div class="project-settings-form">
+        <ProjectForm
+          item-id="new"
+          ref="editForm"
+          @save="onSave"
+          :system-info="systemInfo"
+          hide-demo-switch
+        />
+
+        <div class="texec-create-project__actions">
+          <v-btn
+            data-testid="newProject-currentDemoProject"
+            color="primary"
+            outlined
+            @click="createDemoProject()"
+          >
+            {{ $t('CreateDemoProject') }}
+          </v-btn>
+
+          <v-btn
+            data-testid="newProject-create"
+            color="primary"
+            @click="createProject()"
+          >
+            {{ $t('create') }}
+          </v-btn>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</template>
+<style lang="scss">
+
+</style>
+<script>
+import EventBus from '@/event-bus';
+import ProjectForm from '@/components/ProjectForm.vue';
+
+export default {
+  components: { ProjectForm },
+  data() {
+    return {};
+  },
+  props: {
+    systemInfo: Object,
+  },
+  methods: {
+    onSave(e) {
+      EventBus.$emit('i-project', {
+        action: 'new',
+        item: e.item,
+      });
+    },
+
+    showDrawer() {
+      EventBus.$emit('i-show-drawer');
+    },
+
+    async createProject() {
+      await this.$refs.editForm.save();
+    },
+
+    async createDemoProject() {
+      await this.$refs.editForm.save({
+        demo: true,
+      });
+    },
+  },
+};
+</script>

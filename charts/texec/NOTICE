@@ -1,0 +1,12 @@
+TExec Helm chart
+Copyright (c) 2026 TExec contributors
+
+Based on Semaphore UI Charts 16.2.2
+https://github.com/semaphoreui/charts
+Upstream commit: 92a563854accec1175a5e0cd48e8cd6219567d65
+Copyright (c) 2023 Cloudhippie <info@cloudhippie.de>
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The chart is adapted for TExec images, configuration, persistent SQLite
+storage, externally managed credentials, and OIDC Secret file mappings.
+TExec is independent of the upstream project.

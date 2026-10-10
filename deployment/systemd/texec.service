@@ -1,0 +1,18 @@
+[Unit]
+Description=TExec
+Documentation=https://github.com/impishMD/TExec
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+User=texec
+Group=texec
+StateDirectory=texec
+WorkingDirectory=/var/lib/texec
+EnvironmentFile=-/etc/texec/env
+ExecStart=/usr/bin/texec server --config /etc/texec/config.json
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

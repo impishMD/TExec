@@ -1,0 +1,12 @@
+{{/* Adapted for TExec from Semaphore UI Charts; see NOTICE and LICENSE. */}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "texec.fullname" . }}
+  labels:
+    {{- include "texec.labels" . | nindent 4 }}
+data:
+  {{- include "texec.environment" . | nindent 2 }}
+  {{- range $key, $value := .Values.extraEnvVariables }}
+  {{ $key }}: {{ $value | quote }}
+  {{- end }}

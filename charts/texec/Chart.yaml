@@ -1,0 +1,18 @@
+apiVersion: v2
+name: texec
+description: Web interface and API for Ansible, Terraform, OpenTofu and scripts
+type: application
+annotations:
+  artifacthub.io/license: Apache-2.0
+icon: https://raw.githubusercontent.com/impishMD/TExec/main/web/public/favicon.svg
+version: 1.0.0
+appVersion: "1.0.0"
+kubeVersion: ">=1.26.0-0"
+home: https://github.com/impishMD/TExec
+sources:
+  - https://github.com/semaphoreui/charts
+  - https://github.com/impishMD/TExec
+keywords: [ansible, terraform, opentofu, automation]
+maintainers:
+  - name: impishMD
+    url: https://github.com/impishMD

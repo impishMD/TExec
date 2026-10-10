@@ -1,0 +1,90 @@
+package db_lib
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/pkg/task_logger"
+	"github.com/impishMD/TExec/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestAnsiblePlaybookRunDoesNotStartWhenCancellationIsPending(t *testing.T) {
+	previousConfig := util.Config
+	util.Config = &util.ConfigType{Process: &util.ConfigProcess{}}
+	t.Cleanup(func() { util.Config = previousConfig })
+
+	// Keep ansible-playbook unavailable so the test would fail if RunPlaybook
+	// reached pty.Start.
+	t.Setenv("PATH", t.TempDir())
+	playbook := AnsiblePlaybook{
+		Repository: db.Repository{GitURL: t.TempDir()},
+		Logger:     task_logger.NopLogger{},
+	}
+	stopCh := make(chan struct{})
+	close(stopCh)
+
+	err := playbook.RunPlaybook(nil, nil, nil, stopCh)
+
+	assert.NoError(t, err)
+}
+
+func TestAnsiblePlaybookResolveWorkingDirectory(t *testing.T) {
+	repoRoot := t.TempDir()
+	repository := db.Repository{GitURL: repoRoot}
+
+	t.Run("repository root by default", func(t *testing.T) {
+		playbook := AnsiblePlaybook{Repository: repository}
+
+		workingDirectory, err := playbook.resolveWorkingDirectory()
+
+		require.NoError(t, err)
+		assert.Equal(t, repoRoot, workingDirectory)
+	})
+
+	t.Run("configured repository subdirectory", func(t *testing.T) {
+		relativePath := "deploy/ansible"
+		expectedPath := filepath.Join(repoRoot, "deploy", "ansible")
+		playbook := AnsiblePlaybook{
+			Repository:       repository,
+			WorkingDirectory: &relativePath,
+		}
+
+		workingDirectory, err := playbook.resolveWorkingDirectory()
+
+		require.NoError(t, err)
+		assert.Equal(t, expectedPath, workingDirectory)
+	})
+
+	// Backslash is literal on POSIX and a separator on Windows.
+	t.Run("uses runner-native separators", func(t *testing.T) {
+		relativePath := "deploy\\windows"
+		expectedPath := filepath.Join(repoRoot, `deploy\windows`)
+		if filepath.Separator == '\\' {
+			expectedPath = filepath.Join(repoRoot, "deploy", "windows")
+		}
+		playbook := AnsiblePlaybook{
+			Repository:       repository,
+			WorkingDirectory: &relativePath,
+		}
+
+		workingDirectory, err := playbook.resolveWorkingDirectory()
+
+		require.NoError(t, err)
+		assert.Equal(t, expectedPath, workingDirectory)
+	})
+
+	t.Run("repository escape", func(t *testing.T) {
+		relativePath := "../outside"
+		playbook := AnsiblePlaybook{
+			Repository:       repository,
+			WorkingDirectory: &relativePath,
+		}
+
+		_, err := playbook.resolveWorkingDirectory()
+
+		assert.Error(t, err)
+	})
+}

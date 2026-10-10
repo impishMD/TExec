@@ -1,0 +1,180 @@
+<template>
+  <v-form ref="form" lazy-validation v-model="formValid" v-if="isLoaded">
+    <v-alert :value="formError" color="error" class="pb-2">{{ formError }} </v-alert>
+
+    <v-text-field
+      v-model="item.name"
+      :label="$t('name')"
+      :rules="[(v) => !!v || $t('name_required')]"
+      required
+      :disabled="formSaving"
+      outlined
+      dense
+    ></v-text-field>
+
+    <v-autocomplete
+      v-model="item.template_id"
+      :label="$t('uiTaskTemplateToRun')"
+      clearable
+      :items="templates"
+      item-value="id"
+      item-text="name"
+      :disabled="formSaving"
+      outlined
+      dense
+    ></v-autocomplete>
+
+    <v-card
+      v-if="item.template_id"
+      style="background: var(--highlighted-card-bg-color)"
+      class="mb-6"
+    >
+
+      <v-card-text>
+        <TaskParamsForm
+          :template="templates.find((t) => t.id === item.template_id)"
+          v-model="item.task_params"
+        />
+      </v-card-text>
+    </v-card>
+
+    <v-select
+      v-model="item.auth_method"
+      :label="$t('uiAuthMethod')"
+      :items="authMethods"
+      item-value="id"
+      item-text="title"
+      :disabled="formSaving"
+      outlined
+      dense
+    ></v-select>
+
+    <HighlightedCard v-if="item.auth_method">
+      <template>
+        <v-text-field
+            v-if="['token', 'hmac', 'hmac-sha512'].includes(item.auth_method)"
+            v-model="item.auth_header"
+            :label="$t('uiAuthHeader')"
+            :disabled="formSaving"
+            outlined
+            dense
+        ></v-text-field>
+
+        <v-select
+            v-model="item.auth_secret_id"
+            :label="$t('vaultPassword2')"
+            clearable
+            :items="loginPasswordKeys"
+            item-value="id"
+            item-text="name"
+            :disabled="formSaving"
+            outlined
+            dense
+        ></v-select>
+      </template>
+    </HighlightedCard>
+  </v-form>
+</template>
+<script>
+import ItemFormBase from '@/components/ItemFormBase';
+import axios from 'axios';
+import TaskParamsForm from '@/components/TaskParamsForm.vue';
+import HighlightedCard from '@/components/HighlightedCard.vue';
+
+export default {
+  components: { HighlightedCard, TaskParamsForm },
+  mixins: [ItemFormBase],
+  data() {
+    return {
+      templates: [],
+      authMethods: [
+        {
+          id: '',
+          title: this.$t('keyFormNone'),
+        },
+        {
+          id: 'github',
+          title: 'GitHub Webhooks',
+        },
+        {
+          id: 'bitbucket',
+          title: 'Bitbucket Webhooks',
+        },
+        {
+          id: 'token',
+          title: this.$t('uiToken'),
+        },
+        {
+          id: 'hmac',
+          title: 'HMAC',
+        },
+        {
+          id: 'hmac-sha512',
+          title: 'HMAC (SHA-512)',
+        },
+        {
+          id: 'basic',
+          title: 'BasicAuth',
+        },
+      ],
+      keys: null,
+    };
+  },
+  async created() {
+    this.templates = (
+      await axios({
+        templates: 'get',
+        url: `/api/project/${this.projectId}/templates`,
+        responseType: 'json',
+      })
+    ).data;
+  },
+
+  computed: {
+    isLoaded() {
+      return this.item && this.keys != null;
+    },
+
+    loginPasswordKeys() {
+      if (this.keys == null) {
+        return null;
+      }
+      return this.keys.filter((key) => key.type === 'login_password');
+    },
+
+    template() {
+      return this.templates.find((t) => t.id === this.item.template_id);
+    },
+  },
+
+  methods: {
+    getNewItem() {
+      return {
+        template_id: null,
+      };
+    },
+
+    getItemsUrl() {
+      return `/api/project/${this.projectId}/integrations`;
+    },
+
+    getSingleItemUrl() {
+      return `/api/project/${this.projectId}/integrations/${this.itemId}`;
+    },
+
+    async afterLoadData() {
+      this.keys = (
+        await axios({
+          method: 'get',
+          url: `/api/project/${this.projectId}/keys`,
+          responseType: 'json',
+        })
+      ).data;
+
+      if (this.item.task_params == null) {
+        this.item.task_params = {};
+      }
+    },
+  },
+};
+</script>

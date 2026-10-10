@@ -1,0 +1,32 @@
+package api
+
+import (
+	"net/http"
+
+	"github.com/impishMD/TExec/api/helpers"
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/util"
+	log "github.com/sirupsen/logrus"
+)
+
+func clearCache(w http.ResponseWriter, r *http.Request) {
+	currentUser := helpers.GetFromContext(r, "user").(*db.User)
+
+	if !currentUser.Admin {
+		helpers.WriteJSON(w, http.StatusForbidden, map[string]string{
+			"error": "User must be admin",
+		})
+		return
+	}
+
+	err := util.Config.ClearTmpDir()
+	if err != nil {
+		log.Error(err)
+		helpers.WriteJSON(w, http.StatusInternalServerError, map[string]string{
+			"error": "Can not clear cache",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}

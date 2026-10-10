@@ -1,0 +1,24 @@
+version: "2"
+
+run:
+  timeout: "240s"
+  # TODO: remove following line to make golangci return non-zero as lint were not passed
+  issues-exit-code: 0
+
+linters:
+  default: standard
+  disable:
+    - unused
+  exclusions:
+    paths:
+      # Vendored Go sources of an npm package, not ours to lint.
+      - web/node_modules
+
+formatters:
+  enable:
+    - gofmt
+  settings:
+    gofmt:
+      rewrite-rules:
+        - pattern: 'interface{}'
+          replacement: 'any'

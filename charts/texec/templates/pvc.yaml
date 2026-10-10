@@ -1,0 +1,26 @@
+{{/* Adapted for TExec from Semaphore UI Charts; see NOTICE and LICENSE. */}}
+{{- if not .Values.persistence.existingClaim }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "texec.fullname" . }}
+  labels:
+    {{- include "texec.labels" . | nindent 4 }}
+  {{- $annotations := deepCopy .Values.persistence.annotations }}
+  {{- if .Values.persistence.retain }}
+  {{- $_ := set $annotations "helm.sh/resource-policy" "keep" }}
+  {{- $_ := set $annotations "argocd.argoproj.io/sync-options" "Prune=false,Delete=false" }}
+  {{- end }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  accessModes: {{ toJson .Values.persistence.accessModes }}
+  {{- if ne .Values.persistence.storageClass nil }}
+  storageClassName: {{ .Values.persistence.storageClass | quote }}
+  {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.persistence.size | quote }}
+{{- end }}

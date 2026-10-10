@@ -1,0 +1,231 @@
+{{/* Adapted for TExec from Semaphore UI Charts; see NOTICE and LICENSE. */}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "texec.fullname" . }}
+  labels:
+    {{- include "texec.labels" . | nindent 4 }}
+  {{- with .Values.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "texec.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "texec.labels" . | nindent 8 }}
+      annotations:
+        {{- with merge (deepCopy .Values.podAnnotations) .Values.annotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "texec.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.dnsConfig }}
+      dnsConfig:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- range . }}
+        - name: {{ . | quote }}
+        {{- end }}
+      {{- end }}
+      {{- if or .Values.volumePermissions.enabled .Values.customCertificates.enabled .Values.extraInitContainers }}
+      initContainers:
+        {{- if .Values.customCertificates.enabled }}
+        - name: custom-ca-bundle
+          image: {{ include "texec.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - 'cp /etc/ssl/certs/ca-certificates.crt /work/ca-certificates.crt; printf "\n" >> /work/ca-certificates.crt; cat /custom-ca/ca.crt >> /work/ca-certificates.crt'
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: custom-ca-src
+              mountPath: /custom-ca
+              readOnly: true
+            - name: custom-ca-bundle
+              mountPath: /work
+        {{- end }}
+        {{- if .Values.volumePermissions.enabled }}
+        - name: volume-permissions
+          image: {{ include "texec.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["/bin/sh", "-ec"]
+          args:
+            - 'chown -R -h {{ .Values.podSecurityContext.runAsUser }}:{{ .Values.podSecurityContext.runAsGroup }} /var/lib/texec'
+          securityContext:
+            runAsUser: 0
+            runAsGroup: 0
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+              add: [CHOWN, FOWNER, DAC_OVERRIDE]
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/texec
+        {{- end }}
+        {{- with .Values.extraInitContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}
+      containers:
+        - name: texec
+          image: {{ include "texec.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          envFrom:
+            {{- range .Values.envFromSecrets }}
+            - secretRef:
+                name: {{ . | quote }}
+            {{- end }}
+            {{- range .Values.envFromConfigMaps }}
+            - configMapRef:
+                name: {{ . | quote }}
+            {{- end }}
+            {{- with .Values.extraEnvFrom }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - secretRef:
+                name: {{ required "secrets.existingSecret must name a Secret with bootstrap credentials and an encryption key" .Values.secrets.existingSecret }}
+            - configMapRef:
+                name: {{ include "texec.fullname" . }}
+          # Fail startup on missing required Secret keys instead of generating new credentials.
+          env:
+            - name: TEXEC_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default .Values.secrets.existingSecret .Values.admin.existingSecret }}
+                  key: {{ .Values.admin.passwordKey }}
+            - name: TEXEC_ACCESS_KEY_ENCRYPTION
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.existingSecret }}
+                  key: {{ .Values.secrets.accesskeyEncryptionKey }}
+            {{- if ne .Values.database.type "sqlite" }}
+            {{- range $key, $secretKey := dict "TEXEC_DB_USER" .Values.database.usernameKey "TEXEC_DB_PASS" .Values.database.passwordKey }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ default $.Values.secrets.existingSecret $.Values.database.existingSecret }}
+                  key: {{ $secretKey }}
+            {{- end }}
+            {{- end }}
+            {{- range $key, $value := .Values.extraEnvSecrets }}
+            {{- if hasKey $.Values.extraEnvVariables $key }}
+            {{- fail (printf "%s cannot appear in both extraEnvVariables and extraEnvSecrets" $key) }}
+            {{- end }}
+            - name: {{ $key }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $value.secret }}
+                  key: {{ $value.key }}
+            {{- end }}
+            {{- if .Values.customCertificates.enabled }}
+            {{- range list "SSL_CERT_FILE" "REQUESTS_CA_BUNDLE" "GIT_SSL_CAINFO" }}
+            - name: {{ . }}
+              value: /etc/ssl/certs/ca-certificates.crt
+            {{- end }}
+            {{- end }}
+          {{- range $probe := list "startupProbe" "readinessProbe" "livenessProbe" }}
+          {{ $probe }}:
+            httpGet:
+              path: {{ printf "%s/api/ping" (include "texec.basePath" $) | quote }}
+              port: http
+            {{- toYaml (index $.Values $probe) | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/texec
+            - name: tmp
+              mountPath: /tmp
+            {{- if .Values.oidc.enable }}
+            {{- range $id, $provider := .Values.oidc.providers }}
+            - name: oidc-{{ $id }}
+              mountPath: /etc/texec/oidc/{{ $id }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if .Values.customCertificates.enabled }}
+            - name: custom-ca-bundle
+              mountPath: /etc/ssl/certs/ca-certificates.crt
+              subPath: ca-certificates.crt
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+        {{- with .Values.extraSidecarContainers }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "texec.claimName" . }}
+        - name: tmp
+          emptyDir: {}
+        {{- if .Values.oidc.enable }}
+        {{- range $id, $provider := .Values.oidc.providers }}
+        - name: oidc-{{ $id }}
+          secret:
+            secretName: {{ $provider.existingSecret }}
+            defaultMode: 0444
+            items:
+              - key: {{ default "client-secret" $provider.clientSecretKey }}
+                path: client-secret
+              {{- if $provider.clientIdKey }}
+              - key: {{ $provider.clientIdKey }}
+                path: client-id
+              {{- end }}
+        {{- end }}
+        {{- end }}
+        {{- if .Values.customCertificates.enabled }}
+        - name: custom-ca-src
+          {{- if .Values.customCertificates.existingSecret }}
+          secret:
+            secretName: {{ .Values.customCertificates.existingSecret }}
+          {{- else }}
+          configMap:
+            name: {{ .Values.customCertificates.existingConfigMap }}
+          {{- end }}
+            items:
+              - key: {{ .Values.customCertificates.key }}
+                path: ca.crt
+        - name: custom-ca-bundle
+          emptyDir: {}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

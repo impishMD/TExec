@@ -1,0 +1,87 @@
+package sql
+
+import (
+	"strconv"
+	"strings"
+
+	"github.com/impishMD/TExec/db"
+)
+
+func (d *SqlDb) GetTemplateVaults(projectID int, templateID int) (vaults []db.TemplateVault, err error) {
+	vaults = []db.TemplateVault{}
+
+	_, err = d.selectAll(&vaults, "select * from project__template_vault where project_id=? and template_id=?", projectID, templateID)
+	if err != nil {
+		return
+	}
+	for i := range vaults {
+		err = db.FillTemplateVault(d, projectID, &vaults[i])
+		if err != nil {
+			return
+		}
+	}
+	return
+}
+
+func (d *SqlDb) CreateTemplateVault(vault db.TemplateVault) (newVault db.TemplateVault, err error) {
+	insertID, err := d.insert(
+		"id",
+		"insert into project__template_vault (project_id, template_id, vault_key_id, name, type, script) values (?, ?, ?, ?, ?, ?)",
+		vault.ProjectID,
+		vault.TemplateID,
+		vault.VaultKeyID,
+		vault.Name,
+		vault.Type,
+		vault.Script)
+	if err != nil {
+		return
+	}
+
+	newVault = vault
+	newVault.ID = insertID
+	return
+}
+
+func (d *SqlDb) UpdateTemplateVaults(projectID int, templateID int, vaults []db.TemplateVault) (err error) {
+	if vaults == nil {
+		vaults = []db.TemplateVault{}
+	}
+
+	var vaultIDs []string
+	for _, vault := range vaults {
+		switch vault.Type {
+		case "password":
+			vault.Script = nil
+		case "script":
+			vault.VaultKeyID = nil
+		}
+		if vault.ID == 0 {
+			// Insert new vaults
+			var vaultId int
+			vaultId, err = d.insert("id", "insert into project__template_vault (project_id, template_id, vault_key_id, name, type, script) values (?, ?, ?, ?, ?, ?)", projectID, templateID, vault.VaultKeyID, vault.Name, vault.Type, vault.Script)
+			if err != nil {
+				return
+			}
+			vaultIDs = append(vaultIDs, strconv.Itoa(vaultId))
+		} else {
+			// Update existing vaults. The WHERE clause is scoped to the target
+			// project and template so a body-supplied vault ID belonging to
+			// another project/template cannot be reparented or overwritten;
+			// such an ID makes the update a no-op.
+			_, err = d.exec("update project__template_vault set vault_key_id=?, name=?, type=?, script=? where id=? and project_id=? and template_id=?", vault.VaultKeyID, vault.Name, vault.Type, vault.Script, vault.ID, projectID, templateID)
+			vaultIDs = append(vaultIDs, strconv.Itoa(vault.ID))
+		}
+		if err != nil {
+			return
+		}
+	}
+
+	// Delete removed vaults
+	if len(vaultIDs) == 0 {
+		_, err = d.exec("delete from project__template_vault where project_id=? and template_id=?", projectID, templateID)
+	} else {
+		_, err = d.exec("delete from project__template_vault where project_id=? and template_id=? and id not in ("+strings.Join(vaultIDs, ",")+")", projectID, templateID)
+	}
+
+	return
+}

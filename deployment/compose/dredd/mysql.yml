@@ -1,0 +1,10 @@
+version: "3.4"
+
+services:
+  dredd:
+    environment:
+      TEXEC_DB_DIALECT: mysql
+      TEXEC_DB_CONFIG: '{"host": "db:3306","user": "texec","pass": "texec","name": "texec"}'
+    depends_on:
+      - server
+      - db

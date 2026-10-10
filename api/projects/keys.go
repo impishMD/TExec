@@ -1,0 +1,266 @@
+package projects
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+
+	"github.com/impishMD/TExec/services/server"
+
+	"github.com/impishMD/TExec/api/helpers"
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/services/audit"
+)
+
+type KeyController struct {
+	accessKeyService server.AccessKeyService
+}
+
+func NewKeyController(
+	accessKeyService server.AccessKeyService,
+) *KeyController {
+	return &KeyController{
+		accessKeyService: accessKeyService,
+	}
+}
+
+// KeyMiddleware ensures a key exists and loads it to the context
+func KeyMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		project := helpers.GetFromContext(r, "project").(db.Project)
+		keyID, ok := helpers.GetIntParamOrAbort("key_id", w, r)
+		if !ok {
+			return
+		}
+
+		key, err := helpers.Store(r).GetAccessKey(project.ID, keyID)
+
+		if err != nil {
+			helpers.WriteError(w, err)
+			return
+		}
+
+		// Task-bound survey-secret keys are internal: they must not be
+		// readable or mutable through the generic key endpoints.
+		if key.Owner == db.AccessKeyTaskSecret {
+			helpers.WriteError(w, db.ErrNotFound)
+			return
+		}
+
+		r = helpers.SetContextValue(r, "accessKey", key)
+		next.ServeHTTP(w, r)
+	})
+}
+
+func GetKeyRefs(w http.ResponseWriter, r *http.Request) {
+	key := helpers.GetFromContext(r, "accessKey").(db.AccessKey)
+	refs, err := helpers.Store(r).GetAccessKeyRefs(*key.ProjectID, key.ID)
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, refs)
+}
+
+// GetKeys retrieves sorted keys from the database
+func GetKeys(w http.ResponseWriter, r *http.Request) {
+	if key := helpers.GetFromContext(r, "accessKey"); key != nil {
+		k := key.(db.AccessKey)
+		helpers.WriteJSON(w, http.StatusOK, k)
+		return
+	}
+
+	project := helpers.GetFromContext(r, "project").(db.Project)
+	var keys []db.AccessKey
+
+	keys, err := helpers.Store(r).GetAccessKeys(project.ID, db.GetAccessKeyOptions{}, helpers.QueryParams(r.URL))
+
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, keys)
+}
+
+// AddKey adds a new key to the database
+func (c *KeyController) AddKey(w http.ResponseWriter, r *http.Request) {
+	project := helpers.GetFromContext(r, "project").(db.Project)
+	var key db.AccessKey
+
+	if !helpers.Bind(w, r, &key) {
+		return
+	}
+
+	if key.ProjectID == nil || *key.ProjectID != project.ID {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Project ID in body and URL must be the same",
+		})
+		return
+	}
+
+	// Plain cannot be passed via a request
+	key.Plain = nil
+	key.IgnorePlain = true
+	key.Synchronized = false
+
+	// Task-bound survey-secret keys are created internally at task start only.
+	if key.Owner == db.AccessKeyTaskSecret {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Invalid key owner",
+		})
+		return
+	}
+
+	//if err := key.Validate(true); err != nil {
+	//	helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{
+	//		"error": err.Error(),
+	//	})
+	//	return
+	//}
+
+	newKey, err := c.accessKeyService.Create(key)
+
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.EventLog(r, helpers.EventLogCreate, helpers.EventLogItem{
+		UserID:      helpers.UserFromContext(r).ID,
+		ProjectID:   *newKey.ProjectID,
+		ObjectType:  db.EventKey,
+		ObjectID:    newKey.ID,
+		Description: fmt.Sprintf("Access Key %s created", key.Name),
+	})
+
+	helpers.Audit(r).Record(r.Context(), audit.Event{
+		Kind:      audit.SecretCredentialCreate,
+		Target:    audit.ResourceTarget(audit.TargetCredential, newKey.ID, key.Name),
+		ProjectID: *newKey.ProjectID,
+		Metadata:  audit.CredentialMetadata{Type: string(key.Type)},
+	})
+
+	// Reload key to drop sensitive fields
+	key, err = helpers.Store(r).GetAccessKey(*newKey.ProjectID, newKey.ID)
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+	key.Plain = newKey.Plain
+
+	helpers.WriteJSON(w, http.StatusCreated, key)
+}
+
+// UpdateKey updates key in database
+// nolint: gocyclo
+func (c *KeyController) UpdateKey(w http.ResponseWriter, r *http.Request) {
+	var key db.AccessKey
+	oldKey := helpers.GetFromContext(r, "accessKey").(db.AccessKey)
+
+	if !helpers.Bind(w, r, &key) {
+		return
+	}
+
+	// access key ID and project ID in the body and the path must be the same
+	if key.ID != oldKey.ID {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "Access key id in URL and in body must be the same",
+		})
+		return
+	}
+
+	if oldKey.ProjectID == nil || key.ProjectID == nil || *key.ProjectID != *oldKey.ProjectID {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "You can not move access key to other project",
+		})
+		return
+	}
+
+	// Plain cannot be passed via a request
+	key.Plain = nil
+	key.IgnorePlain = true
+	key.Synchronized = oldKey.Synchronized
+
+	repos, err := helpers.Store(r).GetRepositories(*key.ProjectID, db.RetrieveQueryParams{})
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	for _, repo := range repos {
+		if repo.SSHKeyID != key.ID {
+			continue
+		}
+		err = repo.ClearCache()
+		if err != nil {
+			helpers.WriteError(w, err)
+			return
+		}
+	}
+
+	err = c.accessKeyService.Update(key)
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.EventLog(r, helpers.EventLogUpdate, helpers.EventLogItem{
+		UserID:      helpers.UserFromContext(r).ID,
+		ProjectID:   *oldKey.ProjectID,
+		ObjectType:  db.EventKey,
+		ObjectID:    oldKey.ID,
+		Description: fmt.Sprintf("Access Key %s updated", key.Name),
+	})
+
+	// Reference-only edits can change the interpretation type without a write.
+	storedType := oldKey.Type
+	if key.OverrideSecret || key.ReferenceOnly {
+		storedType = key.Type
+	}
+
+	helpers.Audit(r).Record(r.Context(), audit.Event{
+		Kind:      audit.SecretCredentialUpdate,
+		Target:    audit.ResourceTarget(audit.TargetCredential, oldKey.ID, key.Name),
+		ProjectID: *oldKey.ProjectID,
+		Metadata:  audit.CredentialMetadata{Type: string(storedType)},
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// RemoveKey deletes a key from the database
+func (c *KeyController) RemoveKey(w http.ResponseWriter, r *http.Request) {
+	key := helpers.GetFromContext(r, "accessKey").(db.AccessKey)
+
+	err := c.accessKeyService.Delete(*key.ProjectID, key.ID, r.URL.Query().Get("reference_only") == "true")
+	if errors.Is(err, db.ErrInvalidOperation) {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]any{
+			"error": "Access Key is in use by one or more templates",
+			"inUse": true,
+		})
+		return
+	}
+
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.EventLog(r, helpers.EventLogDelete, helpers.EventLogItem{
+		UserID:      helpers.UserFromContext(r).ID,
+		ProjectID:   *key.ProjectID,
+		ObjectType:  db.EventKey,
+		ObjectID:    key.ID,
+		Description: fmt.Sprintf("Access Key %s deleted", key.Name),
+	})
+
+	helpers.Audit(r).Record(r.Context(), audit.Event{
+		Kind:      audit.SecretCredentialDelete,
+		Target:    audit.ResourceTarget(audit.TargetCredential, key.ID, key.Name),
+		ProjectID: *key.ProjectID,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}

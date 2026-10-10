@@ -1,0 +1,16 @@
+TExec
+Copyright (c) 2026 TExec contributors
+
+Derived from Semaphore UI (https://github.com/semaphoreui/semaphore),
+upstream commit fc66be94a96cb54c21d28b071382f0cf04554d08.
+Copyright (c) 2021 Denis Gukov
+Copyright (c) 2014-2021 Castaway Labs LLC
+
+The upstream MIT license and copyright notices are preserved in LICENSE.
+Third-party attributions are listed in THIRD-PARTY-LICENSES.md.
+TExec is an independent fork and is not affiliated with the upstream project.
+
+The Helm chart derives from Semaphore UI Charts (https://github.com/semaphoreui/charts),
+commit 92a563854accec1175a5e0cd48e8cd6219567d65.
+Copyright (c) 2023 Cloudhippie <info@cloudhippie.de>
+Chart license and attribution: charts/texec/LICENSE and charts/texec/NOTICE (Apache-2.0).

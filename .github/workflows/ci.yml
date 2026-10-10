@@ -1,0 +1,70 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+          # Keep race-enabled test objects separate from package cross-builds.
+          cache-dependency-path: |
+            go.sum
+            .github/workflows/ci.yml
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      - run: make deps
+      - run: make check
+      - run: python3 -B -m unittest discover -s tools -p 'test_release_ci.py'
+      # API tests exercise bcrypt with the production cost; race/coverage
+      # instrumentation can exceed Go's default 10-minute package timeout.
+      - run: go test -race -timeout 20m -coverprofile=coverage.out ./...
+      - run: npm --prefix web run test:unit
+      - run: make build
+      - run: bash tools/test-binary.sh ./bin/texec "v$(cat VERSION)"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        with:
+          name: coverage
+          path: coverage.out
+  container:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+        with:
+          driver-opts: image=mirror.gcr.io/moby/buildkit:buildx-stable-1
+          buildkitd-config-inline: |
+            [registry."docker.io"]
+              mirrors = ["mirror.gcr.io"]
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: .
+          target: server
+          load: true
+          tags: texec:ci
+          cache-from: type=gha,scope=ci-${{ runner.arch }}
+          cache-to: type=gha,scope=ci-${{ runner.arch }},mode=max
+      - run: bash tools/test-container.sh texec:ci dev server
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e
+        with:
+          go-version-file: go.mod
+      - name: Exercise the Docker task executor
+        run: |
+          docker build --build-arg TEXEC_TEST_BASE=texec:ci -t texec:docker-fixture services/tasks/docker/testdata
+          TEXEC_DOCKER_TEST_IMAGE=texec:docker-fixture go test -race -timeout 4m ./services/tasks/docker

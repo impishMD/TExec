@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 740 270" role="img" aria-labelledby="title desc">
+ <title id="title">TExec Edge Dispatch horizontal logo</title><desc id="desc">Icon left, split-color outlined wordmark right.</desc>
+
+ <g transform="translate(30 43) scale(0.65)"><g id="edge-dispatch-mark" fill="none">
+  <path id="speed-upper" d="M 103,88 H 193" stroke="#10C9B8" stroke-width="23" stroke-linecap="round"/>
+  <path id="speed-middle-base" d="M 35,140 H 193" stroke="#DCE8F5" stroke-width="23" stroke-linecap="round"/>
+  <path id="speed-middle-accent" d="M 35,128.5 H 148 V 151.5 H 35 A 11.5,11.5 0 0 1 35,128.5 Z" fill="#10C9B8"/>
+  <path id="speed-lower" d="M 103,192 H 193" stroke="#10C9B8" stroke-width="23" stroke-linecap="round"/>
+  <path id="execution-boundary" d="M 246,20 V 260" stroke="#DCE8F5" stroke-width="24" stroke-linecap="round"/>
+  <path id="run-vector" d="M 298,65 Q 298,61 302,64 L 391,132 Q 401,140 391,148 L 302,216 Q 298,219 298,215 Z" fill="#10C9B8"/>
+ </g></g><g transform="translate(356 193)"><path d="M42 1184H481V0H841V1184H1279V1490H42Z" fill="#10C9B8" transform="translate(0.000,0) scale(0.0610352,-0.0610352)"/>
+<path d="M96 0H1206V306H456V600H1149V897H456V1184H1206V1490H96Z" fill="#EFF4FF" transform="translate(77.527,0) scale(0.0610352,-0.0610352)"/>
+<path d="M4 0H377L460 131C498 196 531 254 564 312C597 254 630 196 667 131L747 0H1120L754 547L1104 1056H738L663 933C628 873 598 818 568 764C539 818 509 873 476 933L403 1056H32L376 538Z" fill="#EFF4FF" transform="translate(151.820,0) scale(0.0610352,-0.0610352)"/>
+<path d="M596 -24C863 -24 1076 125 1115 338H806C781 268 709 224 608 224C472 224 392 309 388 443H1123V536C1123 856 904 1080 587 1080C274 1080 52 850 52 528C52 206 272 -24 596 -24ZM390 649C405 760 480 826 596 826C711 826 787 760 802 649Z" fill="#EFF4FF" transform="translate(217.385,0) scale(0.0610352,-0.0610352)"/>
+<path d="M598 -24C897 -24 1109 160 1116 418H783C770 315 707 249 605 249C477 249 401 355 401 528C401 701 476 807 605 807C707 807 773 742 784 641H1116C1101 900 892 1080 598 1080C271 1080 52 856 52 528C52 199 271 -24 598 -24Z" fill="#EFF4FF" transform="translate(285.757,0) scale(0.0610352,-0.0610352)"/></g>
+</svg>

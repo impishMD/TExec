@@ -1,0 +1,137 @@
+package ssh
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/impishMD/TExec/util"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// TestAgent_Listen_CreatesSocketDir tests that Listen() creates the socket's
+// parent directory if it doesn't exist (e.g. project tmp dir not yet created).
+func TestAgent_Listen_CreatesSocketDir(t *testing.T) {
+	// Not t.TempDir(): its path exceeds the ~104-byte unix socket limit on macOS.
+	tmp, err := os.MkdirTemp("/tmp", "ssh")
+	require.NoError(t, err)
+	t.Cleanup(func() { os.RemoveAll(tmp) }) //nolint:errcheck
+
+	agent := Agent{
+		SocketFile: filepath.Join(tmp, "project_2", "agent.sock"),
+	}
+
+	err = agent.Listen()
+	require.NoError(t, err)
+	require.NoError(t, agent.Close())
+}
+
+// TestAgent_Close_WithNilListener tests that Close() doesn't panic when listener is nil
+func TestAgent_Close_WithNilListener(t *testing.T) {
+	// Create agent with nil listener (simulates failed initialization)
+	agent := Agent{}
+
+	// This should not panic
+	err := agent.Close()
+	if err != nil {
+		t.Errorf("Expected no error when closing agent with nil listener, got: %v", err)
+	}
+}
+
+// TestAgent_Close_WithNilDone tests that Close() doesn't panic when done channel is nil
+func TestAgent_Close_WithNilDone(t *testing.T) {
+	// Create agent with nil done channel
+	agent := Agent{
+		done: nil,
+	}
+
+	// This should not panic
+	err := agent.Close()
+	if err != nil {
+		t.Errorf("Expected no error when closing agent with nil done channel, got: %v", err)
+	}
+}
+
+// TestAgent_Close_WithAllNil tests that Close() doesn't panic when both fields are nil
+func TestAgent_Close_WithAllNil(t *testing.T) {
+	// Create completely empty agent (simulates NewAgent() result)
+	agent := NewAgent()
+
+	// This should not panic
+	err := agent.Close()
+	if err != nil {
+		t.Errorf("Expected no error when closing empty agent, got: %v", err)
+	}
+}
+
+// TestAgent_Close_FailedInitialization simulates the exact scenario from issue #3232
+// where agent initialization fails but the agent is still assigned to installation
+func TestAgent_Close_FailedInitialization(t *testing.T) {
+	// Simulate the scenario described in the issue:
+	// 1. StartSSHAgent() fails during Listen() but returns incomplete agent
+	// 2. Install() method assigns the incomplete agent to installation.SSHAgent
+	// 3. Later, destroyKeys() calls Destroy() which calls Close() on incomplete agent
+
+	// Create an agent that would be returned by StartSSHAgent() if Listen() failed
+	incompleteAgent := Agent{
+		Keys: []AgentKey{
+			{
+				Key:        []byte("test-private-key"),
+				Passphrase: []byte(""),
+			},
+		},
+		SocketFile: "/tmp/test-socket.sock",
+		// listener and done are nil because Listen() failed
+	}
+
+	// This simulates the destroyKeys() -> Destroy() -> Close() call chain
+	// that was causing the panic
+	err := incompleteAgent.Close()
+	if err != nil {
+		t.Errorf("Expected no error when closing incomplete agent, got: %v", err)
+	}
+}
+
+// TestGetGitEnv_SshCommandHasOneSshPrefix covers every host-key checking mode:
+// gitHostKeyCheckingOpts must return options only, because GetGitEnv prepends
+// "ssh". A second one is read by ssh as the host to connect to and every SSH
+// repository fails with "Could not resolve hostname ssh".
+func TestGetGitEnv_SshCommandHasOneSshPrefix(t *testing.T) {
+	original := util.Config
+	t.Cleanup(func() { util.Config = original })
+
+	modes := []util.SshStrictHostKeyChecking{
+		util.SshStrictHostKeyCheckingYes,
+		util.SshStrictHostKeyCheckingNo,
+		util.SshStrictHostKeyCheckingAcceptNew,
+	}
+
+	for _, mode := range modes {
+		t.Run(string(mode), func(t *testing.T) {
+			util.Config = &util.ConfigType{Ssh: &util.SshConfig{
+				StrictHostKeyChecking: mode,
+				KnownHostsFile:        filepath.Join(t.TempDir(), "known_hosts"),
+			}}
+
+			key := AccessKeyInstallation{SSHAgent: &Agent{SocketFile: "/tmp/agent.sock"}}
+
+			var cmd string
+			for _, env := range key.GetGitEnv() {
+				if strings.HasPrefix(env, "GIT_SSH_COMMAND=") {
+					cmd = strings.TrimPrefix(env, "GIT_SSH_COMMAND=")
+				}
+			}
+
+			require.NotEmpty(t, cmd)
+			assert.NotContains(t, cmd, "ssh ssh")
+
+			fields := strings.Fields(cmd)
+			require.Greater(t, len(fields), 1)
+			assert.Equal(t, "ssh", fields[0])
+			assert.True(t, strings.HasPrefix(fields[1], "-"),
+				"the argument after ssh must be an option, got %q", fields[1])
+		})
+	}
+}

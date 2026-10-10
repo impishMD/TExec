@@ -1,0 +1,59 @@
+package helpers
+
+import (
+	"encoding/json"
+	"errors"
+	"net/http"
+	"runtime/debug"
+
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/pkg/common_errors"
+	log "github.com/sirupsen/logrus"
+)
+
+// WriteJSON writes object as JSON
+func WriteJSON(w http.ResponseWriter, code int, out any) {
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(code)
+
+	if out == nil {
+		return
+	}
+
+	if err := json.NewEncoder(w).Encode(out); err != nil {
+		log.Error(err)
+		debug.PrintStack()
+	}
+}
+
+func WriteErrorStatus(w http.ResponseWriter, err string, code int) {
+	WriteJSON(w, code, map[string]string{
+		"error": err,
+	})
+}
+
+func WriteError(w http.ResponseWriter, err error) {
+
+	if errors.Is(err, db.ErrNotFound) {
+		w.WriteHeader(http.StatusNotFound)
+		return
+	}
+
+	if errors.Is(err, db.ErrInvalidOperation) {
+		WriteErrorStatus(w, err.Error(), http.StatusConflict)
+		return
+	}
+
+	var validationError *common_errors.ValidationError
+	var userVisibleError *common_errors.UserVisibleError
+	switch {
+	case errors.As(err, &userVisibleError):
+		WriteErrorStatus(w, userVisibleError.Error(), http.StatusBadRequest)
+	case errors.As(err, &validationError):
+		WriteErrorStatus(w, validationError.Error(), http.StatusBadRequest)
+	default:
+		log.Error(err)
+		debug.PrintStack()
+		w.WriteHeader(http.StatusBadRequest)
+	}
+}

@@ -1,0 +1,289 @@
+package setup
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	log "github.com/sirupsen/logrus"
+
+	"github.com/impishMD/TExec/util"
+)
+
+const interactiveSetupBlurb = `
+Hello! You will now be guided through a setup to:
+
+1. Set up configuration for a MySQL/MariaDB database
+2. Set up a path for your playbooks (auto-created)
+3. Run database Migrations
+4. Set up initial texec user & password
+
+`
+
+func InteractiveRunnerSetup(conf *util.ConfigType) {
+
+	askValue("TExec server URL", "", &conf.WebHost)
+
+	conf.Runner = &util.RunnerConfig{}
+
+	needTokenFile := false
+	askConfirmation("Do you want to store token in external file?", false, &needTokenFile)
+
+	if needTokenFile {
+		askValue("Path to the file where runner token will be stored", "", &conf.Runner.TokenFile)
+	}
+
+	needToken := false
+	askConfirmation("Do you have runner's token?", false, &needToken)
+
+	if needToken {
+		token := ""
+		for {
+			askValue("Enter valid runner token", "", &token)
+
+			if token == "" {
+				fmt.Println("Invalid token")
+				continue
+			}
+			break
+		}
+
+		conf.Runner.Token = token
+
+		return
+	}
+
+	needRegistration := false
+	askConfirmation("Do you want to register new runner on the server?", false, &needRegistration)
+	if needRegistration {
+		regToken := ""
+
+		for {
+			askValue("Enter runner registration token", "", &regToken)
+
+			if regToken == "" {
+				fmt.Println("Invalid registration token")
+				continue
+			}
+
+			break
+		}
+
+		conf.Runner.RegistrationToken = regToken
+
+		return
+	}
+}
+
+func InteractiveSetup(conf *util.ConfigType) {
+	fmt.Print(interactiveSetupBlurb)
+
+	dbPrompt := `What database to use:
+   1 - MySQL
+   2 - BoltDB (NOT SUPPORTED)
+   3 - PostgreSQL
+   4 - SQLite
+`
+
+	var db int
+	askValue(dbPrompt, "1", &db)
+
+	switch db {
+	case 1:
+		conf.Dialect = util.DbDriverMySQL
+		scanMySQL(conf)
+	case 2:
+		panic("BoltDB is not supported starting from version 2.19")
+	case 3:
+		conf.Dialect = util.DbDriverPostgres
+		scanPostgres(conf)
+	case 4:
+		conf.Dialect = util.DbDriverSQLite
+		scanSQLite(conf)
+	default:
+		panic("Unsupported database dialect")
+	}
+
+	defaultPlaybookPath := filepath.Join(os.TempDir(), "texec")
+	askValue("Playbook path", defaultPlaybookPath, &conf.TmpPath)
+	conf.TmpPath = filepath.Clean(conf.TmpPath)
+
+	askValue("Public URL (optional, example: https://example.com/texec)", "", &conf.WebHost)
+
+	askConfirmation("Enable email alerts?", false, &conf.EmailAlert)
+	if conf.EmailAlert {
+		askValue("Mail server host", "localhost", &conf.EmailHost)
+		askValue("Mail server port", "25", &conf.EmailPort)
+		askValue("Mail sender address", "texec@localhost", &conf.EmailSender)
+	}
+
+	askConfirmation("Enable slack alerts?", false, &conf.SlackAlert)
+	if conf.SlackAlert {
+		askValue("Slack Webhook URL", "", &conf.SlackUrl)
+	}
+
+	askConfirmation("Enable Rocket.Chat alerts?", false, &conf.RocketChatAlert)
+	if conf.RocketChatAlert {
+		askValue("Rocket.Chat Webhook URL", "", &conf.RocketChatUrl)
+	}
+
+	askConfirmation("Enable Microsoft Team Channel alerts?", false, &conf.MicrosoftTeamsAlert)
+	if conf.MicrosoftTeamsAlert {
+		askValue("Microsoft Teams Webhook URL", "", &conf.MicrosoftTeamsUrl)
+	}
+
+	askConfirmation("Enable LDAP authentication?", false, &conf.LdapEnable)
+	if conf.LdapEnable {
+		conf.LdapMappings = &util.LdapMappings{}
+		askValue("LDAP server host", "localhost:389", &conf.LdapServer)
+		askConfirmation("Enable LDAP TLS connection", false, &conf.LdapNeedTLS)
+		askValue("LDAP DN for bind", "cn=user,ou=users,dc=example", &conf.LdapBindDN)
+		askValue("Password for LDAP bind user", "pa55w0rd", &conf.LdapBindPassword)
+		askValue("LDAP DN for user search", "ou=users,dc=example", &conf.LdapSearchDN)
+		askValue("LDAP search filter", `(uid=%s)`, &conf.LdapSearchFilter)
+		askValue("LDAP mapping for DN field", "dn", &conf.LdapMappings.DN)
+		askValue("LDAP mapping for username field", "uid", &conf.LdapMappings.UID)
+		askValue("LDAP mapping for full name field", "cn", &conf.LdapMappings.CN)
+		askValue("LDAP mapping for email field", "mail", &conf.LdapMappings.Mail)
+	}
+}
+
+func scanSQLite(conf *util.ConfigType) {
+	conf.SQLite = scanFileDB("database.sqlite")
+}
+
+func scanMySQL(conf *util.ConfigType) {
+	conf.MySQL = &util.DbConfig{}
+	askValue("db Hostname", "127.0.0.1:3306", &conf.MySQL.Hostname)
+	askValue("db User", "root", &conf.MySQL.Username)
+	askValue("db Password", "", &conf.MySQL.Password)
+	askValue("db Name", "texec", &conf.MySQL.DbName)
+}
+
+func scanPostgres(conf *util.ConfigType) {
+	conf.Postgres = &util.DbConfig{}
+	askValue("db Hostname", "127.0.0.1:5432", &conf.Postgres.Hostname)
+	askValue("db User", "root", &conf.Postgres.Username)
+	askValue("db Password", "", &conf.Postgres.Password)
+	askValue("db Name", "texec", &conf.Postgres.DbName)
+	if conf.Postgres.Options == nil {
+		conf.Postgres.Options = make(map[string]string)
+	}
+	if _, exists := conf.Postgres.Options["sslmode"]; !exists {
+		conf.Postgres.Options["sslmode"] = "disable"
+	}
+}
+
+func scanFileDB(defaultDbFile string) *util.DbConfig {
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		workingDirectory = os.TempDir()
+	}
+	defaultDBPath := filepath.Join(workingDirectory, defaultDbFile)
+	conf := &util.DbConfig{}
+	askValue("db Hostname", defaultDBPath, &conf.Hostname)
+	return conf
+}
+
+func scanErrorChecker(n int, err error) {
+	if err != nil && err.Error() != "unexpected newline" {
+		log.Warn("An input error occurred: " + err.Error())
+	}
+}
+
+type IConfig interface {
+	ToJSON() ([]byte, error)
+}
+
+func SaveConfig(config IConfig, defaultFilename string, requiredConfigPath string) (configPath string) {
+
+	if requiredConfigPath == "" {
+		configDirectory, err := os.Getwd()
+		if err != nil {
+			configDirectory, err = os.UserConfigDir()
+			if err != nil {
+				// Final fallback
+				configDirectory = "/etc/texec"
+			}
+			configDirectory = filepath.Join(configDirectory, "texec")
+		}
+
+		askValue("Config output directory", configDirectory, &configDirectory)
+		configPath = filepath.Join(configDirectory, defaultFilename)
+	} else {
+		configPath = requiredConfigPath
+	}
+
+	configDirectory := filepath.Dir(configPath)
+
+	fmt.Printf("Running: mkdir -p %v..\n", configDirectory)
+
+	var err error
+
+	if _, err = os.Stat(configDirectory); err != nil {
+		if os.IsNotExist(err) {
+			err = os.MkdirAll(configDirectory, 0755)
+		}
+	}
+
+	if err != nil {
+		log.Panic("Could not create config directory: " + err.Error())
+	}
+
+	// Marshal config to json
+	bytes, err := config.ToJSON()
+	if err != nil {
+		panic(err)
+	}
+
+	if err = os.WriteFile(configPath, bytes, 0644); err != nil {
+		panic(err)
+	}
+
+	fmt.Printf("Configuration written to %v..\n", configPath)
+	return
+}
+
+func askValue(prompt string, defaultValue string, item any) {
+	// Print prompt with optional default value
+	fmt.Print(prompt)
+	if len(defaultValue) != 0 {
+		fmt.Print(" (default " + defaultValue + ")")
+	}
+	fmt.Print(": ")
+
+	_, _ = fmt.Sscanln(defaultValue, item)
+
+	n, err := fmt.Scanln(item)
+	scanErrorChecker(n, err)
+
+	// Empty line after prompt
+	fmt.Println("")
+}
+
+func askConfirmation(prompt string, defaultValue bool, item *bool) {
+	defString := "yes"
+	if !defaultValue {
+		defString = "no"
+	}
+
+	fmt.Print(prompt + " (yes/no) (default " + defString + "): ")
+
+	var answer string
+
+	n, err := fmt.Scanln(&answer)
+	scanErrorChecker(n, err)
+
+	switch strings.ToLower(answer) {
+	case "y", "yes":
+		*item = true
+	case "n", "no":
+		*item = false
+	default:
+		*item = defaultValue
+	}
+
+	// Empty line after prompt
+	fmt.Println("")
+}

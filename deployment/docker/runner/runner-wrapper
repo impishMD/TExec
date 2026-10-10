@@ -1,0 +1,28 @@
+#!/bin/sh
+set -e
+echoerr() { printf "%s\n" "$*" >&2; }
+
+export TEXEC_CONFIG_PATH="${TEXEC_CONFIG_PATH:-/etc/texec}"
+export TEXEC_TMP_PATH="${TEXEC_TMP_PATH:-/tmp/texec}"
+export TEXEC_DATA_PATH="${TEXEC_DATA_PATH:-/var/lib/texec}"
+
+if test -f "${TEXEC_CONFIG_PATH}/requirements.txt"; then
+    echoerr "Installing additional python dependencies"
+    pip3 install --upgrade -r "${TEXEC_CONFIG_PATH}/requirements.txt"
+else
+    echoerr "No additional python dependencies to install"
+fi
+
+echoerr "Starting texec runner"
+
+RUNNER_CMD="/usr/local/bin/texec runner start --no-config"
+
+if [ -n "${TEXEC_RUNNER_REGISTRATION_TOKEN:-}" ] || [ -n "${TEXEC_RUNNER_REGISTRATION_TOKEN_FILE:-}" ]; then
+  if [ -z "${TEXEC_RUNNER_TOKEN:-}" ] && [ -z "${TEXEC_RUNNER_TOKEN_FILE:-}" ]; then
+    export TEXEC_RUNNER_TOKEN_FILE="${TEXEC_DATA_PATH}/runner_token.txt"
+  fi
+  echoerr "Registration token provided, starting runner in registration mode"
+  exec ${RUNNER_CMD} --register
+else
+  exec ${RUNNER_CMD}
+fi

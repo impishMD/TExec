@@ -1,0 +1,417 @@
+package projects
+
+import (
+	"net/http"
+
+	"github.com/impishMD/TExec/services/server"
+
+	"github.com/impishMD/TExec/api/helpers"
+	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/services/audit"
+	"github.com/impishMD/TExec/util"
+	log "github.com/sirupsen/logrus"
+)
+
+type ProjectsController struct {
+	accessKeyService server.AccessKeyService
+}
+
+func NewProjectsController(
+	accessKeyService server.AccessKeyService,
+) *ProjectsController {
+	return &ProjectsController{
+		accessKeyService: accessKeyService,
+	}
+}
+
+// GetProjects returns all projects in this users context
+func GetProjects(w http.ResponseWriter, r *http.Request) {
+	user := helpers.GetFromContext(r, "user").(*db.User)
+
+	var err error
+	var projects []db.Project
+	if user.Admin {
+		projects, err = helpers.Store(r).GetAllProjects()
+	} else {
+		projects, err = helpers.Store(r).GetProjects(user.ID)
+	}
+
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	helpers.WriteJSON(w, http.StatusOK, projects)
+}
+
+func (c *ProjectsController) createDemoProject(projectID int, noneKeyID int, store db.Store) (err error) {
+	var demoRepo db.Repository
+
+	var buildInv db.Inventory
+	var devInv db.Inventory
+	var prodInv db.Inventory
+
+	var buildView db.View
+	var deployView db.View
+	var toolsView db.View
+
+	buildView, err = store.CreateView(db.View{
+		ProjectID: projectID,
+		Title:     "Build",
+		Position:  0,
+	})
+
+	if err != nil {
+		return
+	}
+
+	deployView, err = store.CreateView(db.View{
+		ProjectID: projectID,
+		Title:     "Deploy",
+		Position:  1,
+	})
+
+	if err != nil {
+		return
+	}
+
+	toolsView, err = store.CreateView(db.View{
+		ProjectID: projectID,
+		Title:     "Tools",
+		Position:  2,
+	})
+
+	if err != nil {
+		return
+	}
+
+	vaultKey, err := c.accessKeyService.Create(db.AccessKey{
+		Name:      "Vault Password",
+		Type:      db.AccessKeyLoginPassword,
+		ProjectID: &projectID,
+		LoginPassword: db.LoginPassword{
+			Password: "RAX6yKN7sBn2qDagRPls",
+		},
+	})
+
+	if err != nil {
+		return
+	}
+
+	demoRepo, err = store.CreateRepository(db.Repository{
+		Name:      "Demo",
+		ProjectID: projectID,
+		GitURL:    "https://github.com/impishMD/TExec.git",
+		GitBranch: "main",
+		SSHKeyID:  noneKeyID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	buildInv, err = store.CreateInventory(db.Inventory{
+		Name:      "Build",
+		ProjectID: projectID,
+		Inventory: "[builder]\nlocalhost ansible_connection=local",
+		Type:      "static",
+		SSHKeyID:  &noneKeyID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	devInv, err = store.CreateInventory(db.Inventory{
+		Name:      "Dev",
+		ProjectID: projectID,
+		Inventory: "examples/demo/invs/dev/hosts",
+		Type:      "file",
+		SSHKeyID:  &noneKeyID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	prodInv, err = store.CreateInventory(db.Inventory{
+		Name:      "Prod",
+		ProjectID: projectID,
+		Inventory: "examples/demo/invs/prod/hosts",
+		Type:      "file",
+		SSHKeyID:  &noneKeyID,
+	})
+
+	var desc string
+
+	if err != nil {
+		return
+	}
+
+	desc = "Checks local execution with Ansible in TExec."
+	_, err = store.CreateTemplate(db.Template{
+		Name:           "Check TExec execution environment",
+		Playbook:       "examples/demo/ping.yml",
+		Description:    &desc,
+		ProjectID:      projectID,
+		InventoryID:    &prodInv.ID,
+		EnvironmentIDs: []int{},
+		RepositoryID:   demoRepo.ID,
+		App:            db.AppAnsible,
+		ViewID:         &toolsView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	desc = "Demonstrates a versioned build task."
+
+	var startVersion = "1.0.0"
+	buildTpl, err := store.CreateTemplate(db.Template{
+		Name:           "Build demo app",
+		Playbook:       "examples/demo/build.yml",
+		Type:           db.TemplateBuild,
+		ProjectID:      projectID,
+		InventoryID:    &buildInv.ID,
+		EnvironmentIDs: []int{},
+		RepositoryID:   demoRepo.ID,
+		StartVersion:   &startVersion,
+		App:            db.AppAnsible,
+		ViewID:         &buildView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	var template db.Template
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Deploy demo app to Dev",
+		Type:            db.TemplateDeploy,
+		Playbook:        "examples/demo/deploy.yml",
+		ProjectID:       projectID,
+		InventoryID:     &devInv.ID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		Autorun:         true,
+		App:             db.AppAnsible,
+		ViewID:          &deployView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	_, err = store.CreateTemplateVault(db.TemplateVault{
+		ProjectID:  projectID,
+		TemplateID: template.ID,
+		VaultKeyID: &vaultKey.ID,
+		Name:       nil,
+		Type:       "password",
+	})
+
+	if err != nil {
+		return
+	}
+
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Deploy demo app to Production",
+		Type:            db.TemplateDeploy,
+		Playbook:        "examples/demo/deploy.yml",
+		ProjectID:       projectID,
+		InventoryID:     &prodInv.ID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		App:             db.AppAnsible,
+		ViewID:          &deployView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	_, err = store.CreateTemplateVault(db.TemplateVault{
+		ProjectID:  projectID,
+		TemplateID: template.ID,
+		VaultKeyID: &vaultKey.ID,
+		Name:       nil,
+		Type:       "password",
+	})
+
+	if err != nil {
+		return
+	}
+
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Apply infrastructure (OpenTofu)",
+		Type:            db.TemplateTask,
+		Playbook:        "examples/demo",
+		ProjectID:       projectID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		App:             db.AppTofu,
+		ViewID:          &buildView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Apply infrastructure (Terragrunt)",
+		Type:            db.TemplateTask,
+		Playbook:        "examples/demo",
+		ProjectID:       projectID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		App:             db.AppTerragrunt,
+		ViewID:          &buildView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Print system info (Bash)",
+		Type:            db.TemplateTask,
+		Playbook:        "examples/demo/print_system_info.sh",
+		ProjectID:       projectID,
+		InventoryID:     &prodInv.ID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		App:             db.AppBash,
+		ViewID:          &toolsView.ID,
+	})
+
+	if err != nil {
+		return
+	}
+
+	template, err = store.CreateTemplate(db.Template{
+		Name:            "Print system info (PowerShell)",
+		Type:            db.TemplateTask,
+		Playbook:        "examples/demo/print_system_info.ps1",
+		ProjectID:       projectID,
+		InventoryID:     &prodInv.ID,
+		EnvironmentIDs:  []int{},
+		RepositoryID:    demoRepo.ID,
+		BuildTemplateID: &buildTpl.ID,
+		App:             db.AppPowerShell,
+		ViewID:          &toolsView.ID,
+	})
+	return
+}
+
+// AddProject adds a new project to the database
+func (c *ProjectsController) AddProject(w http.ResponseWriter, r *http.Request) {
+
+	user := helpers.GetFromContext(r, "user").(*db.User)
+
+	if !user.Admin && !util.Config.NonAdminCanCreateProject {
+		log.Warn(user.Username + " is not permitted to edit users")
+		helpers.RecordDenied(r, "admin", 0)
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+
+	var bodyWithDemo struct {
+		db.Project
+		Demo bool `json:"demo"`
+	}
+
+	if !helpers.Bind(w, r, &bodyWithDemo) {
+		return
+	}
+
+	body := bodyWithDemo.Project
+
+	store := helpers.Store(r)
+
+	body, err := store.CreateProject(body)
+	if err != nil {
+		helpers.WriteError(w, err)
+		return
+	}
+
+	// The project row exists, so a failed setup step is still recorded.
+	recordSetupFailed := func() {
+		helpers.Audit(r).Record(r.Context(), audit.Event{
+			Kind:      audit.ResourceProjectCreate,
+			Target:    audit.ResourceTarget(audit.TargetProject, body.ID, body.Name),
+			ProjectID: body.ID,
+			Reason:    audit.ReasonSetupFailed,
+			Metadata:  audit.ProjectCreateMetadata{Demo: bodyWithDemo.Demo, Partial: true},
+		})
+	}
+
+	_, err = store.CreateProjectUser(db.ProjectUser{ProjectID: body.ID, UserID: user.ID, Role: db.ProjectOwner})
+	if err != nil {
+		recordSetupFailed()
+		helpers.WriteError(w, err)
+		return
+	}
+
+	noneKey, err := c.accessKeyService.Create(db.AccessKey{
+		Name:      "None",
+		Type:      db.AccessKeyNone,
+		ProjectID: &body.ID,
+	})
+
+	if err != nil {
+		recordSetupFailed()
+		helpers.WriteError(w, err)
+		return
+	}
+
+	_, err = store.CreateView(db.View{
+		ProjectID: body.ID,
+		Title:     "All",
+		Position:  0,
+		Type:      db.ViewTypeAll,
+	})
+
+	if err != nil {
+		recordSetupFailed()
+		helpers.WriteError(w, err)
+		return
+	}
+
+	if err != nil {
+		return
+	}
+
+	if bodyWithDemo.Demo {
+		err = c.createDemoProject(body.ID, noneKey.ID, store)
+
+		if err != nil {
+			recordSetupFailed()
+			helpers.WriteError(w, err)
+			return
+		}
+	}
+
+	helpers.EventLog(r, helpers.EventLogCreate, helpers.EventLogItem{
+		UserID:      helpers.UserFromContext(r).ID,
+		ProjectID:   body.ID,
+		ObjectType:  db.EventProject,
+		ObjectID:    body.ID,
+		Description: "Project created",
+	})
+
+	// Demo objects are sample content, so the project event covers them.
+	helpers.Audit(r).Record(r.Context(), audit.Event{
+		Kind:      audit.ResourceProjectCreate,
+		Target:    audit.ResourceTarget(audit.TargetProject, body.ID, body.Name),
+		ProjectID: body.ID,
+		Metadata:  audit.ProjectCreateMetadata{Demo: bodyWithDemo.Demo},
+	})
+
+	helpers.WriteJSON(w, http.StatusCreated, body)
+}
