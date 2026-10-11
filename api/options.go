@@ -28,12 +28,26 @@ func setOption(w http.ResponseWriter, r *http.Request) {
 		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "remote runner setting must be true or false"})
 		return
 	}
+	if option.Key == server.ScheduleTimezoneOption {
+		current, err := server.GetScheduleTimezone(helpers.Store(r))
+		if err != nil {
+			writeServerSettingsError(w, err)
+			return
+		}
+		if err = server.ValidateScheduleTimezone(option.Value, current); err != nil {
+			helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+			return
+		}
+	}
 	err := helpers.Store(r).SetOption(option.Key, option.Value)
 	if err != nil {
 		helpers.WriteJSON(w, http.StatusInternalServerError, map[string]string{
 			"error": "Can not set option",
 		})
 		return
+	}
+	if option.Key == server.ScheduleTimezoneOption {
+		refreshServerSchedules(r)
 	}
 
 	helpers.Audit(r).Record(r.Context(), audit.Event{

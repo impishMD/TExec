@@ -94,7 +94,7 @@
   "runner.token": "Authentication token this runner presents to the server. Issued by `texec runner register`.",
   "runner.token_file": "Path to token file for runner registration.",
   "runner.webhook": "Webhook URL for runner.",
-  "schedule.timezone": "Timezone used for scheduling tasks and cron jobs. Default: UTC",
+  "schedule.timezone": "Overrides the database timezone for schedules. When unset, uses the saved preference in General settings, or the server system timezone if no preference is saved. Environment variables take precedence over configuration.",
   "slack_alert": "Set to True to enable pushing alerts to slack. It should be used in combination with `slack_url`",
   "slack_url": "The slack webhook url. TExec will used it to POST Slack formatted json alerts to the provided url.",
   "sqlite.host": "Path to the SQLite database file.",

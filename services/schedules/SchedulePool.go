@@ -3,19 +3,19 @@ package schedules
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/impishMD/TExec/pkg/common_errors"
 	"github.com/impishMD/TExec/services/audit"
 	"github.com/impishMD/TExec/services/server"
-	"github.com/impishMD/TExec/util"
 
-	"github.com/robfig/cron/v3"
 	"github.com/impishMD/TExec/db"
 	"github.com/impishMD/TExec/db_lib"
 	"github.com/impishMD/TExec/pkg/task_logger"
 	"github.com/impishMD/TExec/services/tasks"
+	"github.com/robfig/cron/v3"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -255,6 +255,8 @@ type SchedulePool struct {
 	taskPool          *tasks.TaskPool
 	encryptionService server.AccessKeyEncryptionService
 	keyInstaller      db_lib.AccessKeyInstaller
+	done              chan struct{}
+	timezone          *string // shared with copies injected into HTTP request contexts
 }
 
 // SetDeduplicator configures a distributed schedule deduplicator for HA mode.
@@ -264,15 +266,29 @@ func (p *SchedulePool) SetDeduplicator(d ScheduleDeduplicator) {
 }
 
 func (p *SchedulePool) init() {
-	loc, err := time.LoadLocation(util.Config.Schedule.Timezone)
+	setting, err := server.GetScheduleTimezone(p.store)
 	if err != nil {
 		panic(err)
 	}
-	p.cron = cron.New(cron.WithLocation(loc))
+	p.cron = cron.New(cron.WithLocation(setting.Location))
 	p.locker = &sync.Mutex{}
+	p.done = make(chan struct{})
+	p.timezone = new(string)
 }
 
 func (p *SchedulePool) Refresh() {
+	p.locker.Lock()
+	defer p.locker.Unlock()
+	select {
+	case <-p.done:
+		return
+	default:
+	}
+	setting, err := server.GetScheduleTimezone(p.store)
+	if err != nil {
+		log.WithError(err).Error("failed to resolve schedule timezone")
+		return
+	}
 
 	schedules, err := p.store.GetSchedules()
 
@@ -283,11 +299,9 @@ func (p *SchedulePool) Refresh() {
 		return
 	}
 
-	p.locker.Lock()
-	defer p.locker.Unlock()
-
 	p.clear()
-	now := time.Now().In(p.cron.Location())
+	*p.timezone = setting.Value
+	now := time.Now()
 	for _, schedule := range schedules {
 		scheduleType := schedule.Type
 		if scheduleType == "" {
@@ -316,7 +330,7 @@ func (p *SchedulePool) Refresh() {
 				continue
 			}
 
-			runAt := schedule.RunAt.In(p.cron.Location())
+			runAt := *schedule.RunAt
 
 			if !runAt.After(now) {
 				if schedule.DeleteAfterRun {
@@ -347,7 +361,7 @@ func (p *SchedulePool) Refresh() {
 				continue
 			}
 
-			_, err = p.addRunner(runner, schedule.CronFormat)
+			_, err = p.addRunner(runner, schedule.CronFormat, setting.Location)
 		default:
 			log.WithFields(log.Fields{
 				"project_id":  schedule.ProjectID,
@@ -367,13 +381,24 @@ func (p *SchedulePool) Refresh() {
 	}
 }
 
-func (p *SchedulePool) addRunner(runner ScheduleRunner, cronFormat string) (int, error) {
-	id, err := p.cron.AddJob(cronFormat, runner)
-
+func (p *SchedulePool) addRunner(runner ScheduleRunner, cronFormat string, location *time.Location) (int, error) {
+	schedule, err := cron.ParseStandard(cronFormat)
 	if err != nil {
 		return 0, err
 	}
-
+	// Keep explicit per-expression zones; other schedules use the current
+	// server setting instead of the cron instance's startup location.
+	format := strings.TrimSpace(cronFormat)
+	if spec, ok := schedule.(*cron.SpecSchedule); ok && !strings.HasPrefix(format, "CRON_TZ=") && !strings.HasPrefix(format, "TZ=") {
+		if location == time.Local {
+			// cron treats time.Local as "inherit the engine's startup zone".
+			// A copy keeps the actual system rules when resetting a saved zone.
+			local := *location
+			location = &local
+		}
+		spec.Location = location
+	}
+	id := p.cron.Schedule(schedule, runner)
 	return int(id), nil
 }
 
@@ -384,7 +409,36 @@ func (p *SchedulePool) addOneTimeRunner(runner ScheduleRunner, runAt time.Time) 
 }
 
 func (p *SchedulePool) Run() {
-	p.cron.Run()
+	p.locker.Lock()
+	select {
+	case <-p.done:
+		p.locker.Unlock()
+		return
+	default:
+	}
+	p.cron.Start()
+	p.locker.Unlock()
+	ticker := time.NewTicker(5 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-p.done:
+			return
+		case <-ticker.C:
+			// Other server instances also pick up database-backed changes.
+			setting, err := server.GetScheduleTimezone(p.store)
+			if err != nil {
+				log.WithError(err).Error("failed to refresh schedule timezone")
+				continue
+			}
+			p.locker.Lock()
+			changed := setting.Value != *p.timezone
+			p.locker.Unlock()
+			if changed {
+				p.Refresh()
+			}
+		}
+	}
 }
 
 func (p *SchedulePool) clear() {
@@ -397,9 +451,14 @@ func (p *SchedulePool) clear() {
 func (p *SchedulePool) Destroy() {
 	p.locker.Lock()
 	defer p.locker.Unlock()
+	select {
+	case <-p.done:
+		return
+	default:
+		close(p.done)
+	}
 	p.cron.Stop()
 	p.clear()
-	p.cron = nil
 }
 
 func CreateSchedulePool(

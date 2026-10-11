@@ -9,9 +9,11 @@ import (
 	"github.com/impishMD/TExec/db/sql"
 	"github.com/impishMD/TExec/pkg/ssh"
 	"github.com/impishMD/TExec/pkg/task_logger"
+	"github.com/impishMD/TExec/services/server"
 	"github.com/impishMD/TExec/services/tasks"
 	"github.com/impishMD/TExec/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // mockEncryptionService is a test implementation of AccessKeyEncryptionService
@@ -203,4 +205,87 @@ func TestScheduleProceedsWhenTryLockExecutionReturnsTrue(t *testing.T) {
 	// Verify the deduplicator was called and returned true (schedule proceeds)
 	assert.False(t, shouldSkip, "schedule should proceed when TryLockExecution returns true")
 	assert.Equal(t, 1, dedup.getLockAttempts(scheduleID), "TryLockExecution should be called once")
+}
+
+func TestTimezoneChangeReschedulesCronButPreservesRunAt(t *testing.T) {
+	pool, store := setupTestSchedulePool(t)
+	originalLocal := time.Local
+	t.Cleanup(func() { time.Local = originalLocal })
+	local, err := time.LoadLocation("Asia/Tokyo")
+	require.NoError(t, err)
+	time.Local = local
+	t.Setenv("TEXEC_SCHEDULE_TIMEZONE", "")
+	util.Config.Schedule.Timezone = ""
+	project, err := store.CreateProject(db.Project{Name: "schedules"})
+	require.NoError(t, err)
+	key, err := store.CreateAccessKey(db.AccessKey{ProjectID: &project.ID, Name: "none", Type: db.AccessKeyNone})
+	require.NoError(t, err)
+	repo, err := store.CreateRepository(db.Repository{ProjectID: project.ID, Name: "repo", GitURL: "/tmp/repo", GitBranch: "main", SSHKeyID: key.ID})
+	require.NoError(t, err)
+	template, err := store.CreateTemplate(db.Template{ProjectID: project.ID, Name: "scheduled", RepositoryID: repo.ID, App: db.AppBash, Playbook: "test.sh"})
+	require.NoError(t, err)
+	runAt := time.Now().Add(24 * time.Hour).UTC().Truncate(time.Second)
+	for _, schedule := range []db.Schedule{
+		{Active: true, CronFormat: "0 9 * * *"},
+		{Active: true, CronFormat: "CRON_TZ=Asia/Tokyo 0 9 * * *"},
+		{Active: true, Type: db.ScheduleTypeRunAt, RunAt: &runAt},
+		{Active: false, CronFormat: "0 12 * * *"},
+	} {
+		schedule.ProjectID, schedule.TemplateID = project.ID, template.ID
+		_, err = store.CreateSchedule(schedule)
+		require.NoError(t, err)
+	}
+	start := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	for _, test := range []struct {
+		zone string
+		hour int
+	}{{"UTC", 9}, {"Europe/Moscow", 6}, {"", 0}} {
+		require.NoError(t, store.SetOption(server.ScheduleTimezoneOption, test.zone))
+		// Request contexts hold a copy of the pool; both copies must see the refresh.
+		copy := *pool
+		copy.Refresh()
+		entries := pool.cron.Entries()
+		require.Len(t, entries, 3)
+		for _, entry := range entries {
+			next := entry.Schedule.Next(start).UTC()
+			switch entry.Job.(ScheduleRunner).scheduleID {
+			case 1:
+				assert.Equal(t, test.hour, next.Hour())
+			case 2:
+				assert.Equal(t, 0, next.Hour(), "explicit cron timezone stays intact")
+			case 3:
+				assert.Equal(t, runAt, next)
+			default:
+				t.Fatal("unexpected schedule")
+			}
+		}
+		stored, err := store.GetSchedule(project.ID, 3)
+		require.NoError(t, err)
+		assert.True(t, stored.RunAt.Equal(runAt))
+	}
+}
+
+func TestSchedulePoolWatchesDatabaseTimezone(t *testing.T) {
+	pool, store := setupTestSchedulePool(t)
+	t.Setenv("TEXEC_SCHEDULE_TIMEZONE", "")
+	util.Config.Schedule.Timezone = ""
+	require.NoError(t, store.SetOption(server.ScheduleTimezoneOption, "UTC"))
+	pool.Refresh()
+	stopped := make(chan struct{})
+	go func() { pool.Run(); close(stopped) }()
+	t.Cleanup(func() {
+		pool.Destroy()
+		select {
+		case <-stopped:
+		case <-time.After(time.Second):
+			t.Error("schedule watcher did not stop")
+		}
+	})
+	// Simulates a settings save on another server: no direct Refresh call.
+	require.NoError(t, store.SetOption(server.ScheduleTimezoneOption, "Asia/Tokyo"))
+	require.Eventually(t, func() bool {
+		pool.locker.Lock()
+		defer pool.locker.Unlock()
+		return *pool.timezone == "Asia/Tokyo"
+	}, 7*time.Second, 20*time.Millisecond)
 }

@@ -42,6 +42,18 @@ backups, not project JSON exports.
 Automation can use the administrator-only `GET /api/settings` and `PUT /api/settings`
 endpoints with `{"use_remote_runner": true}` or `{"use_remote_runner": false}`.
 
+The **Schedule timezone** field applies to schedules in all projects. Leave it empty
+to follow the server system timezone (the container timezone for Docker deployments).
+The priority is `TEXEC_SCHEDULE_TIMEZONE` → `schedule.timezone` in JSON/YAML → the
+database preference → the system timezone. An environment or configuration override
+locks editing and shows the effective value and the reason; the saved database value
+is preserved and takes effect again when the override is removed. External configuration
+changes require a server restart. Saving a database preference recalculates recurring
+schedules immediately on this server; other running servers detect it within five seconds.
+One-time schedules retain their absolute execution time. Clear the field to return to
+the system default. `PUT /api/settings` accepts an optional `schedule_timezone` string
+alongside `use_remote_runner`; omit it to preserve the existing preference.
+
 ## Project message templates
 
 Open **Dashboard → Settings → Alerts → Telegram → Message templates** to set separate
