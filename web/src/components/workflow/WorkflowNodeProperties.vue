@@ -89,9 +89,13 @@
             class="mb-5"
             @input="emitChange"
           />
-          <v-text-field
+          <v-textarea
             v-model="node.approval_message"
             :label="$t('workflowApprovalMessage')"
+            :hint="$t('workflowApprovalMessageHint')"
+            persistent-hint
+            rows="2"
+            auto-grow
             :disabled="!canManage"
             outlined
             dense
@@ -100,6 +104,18 @@
             @input="emitChange"
           />
         </template>
+
+        <v-switch
+          v-if="kind === 'approval'" :input-value="!!node.notification"
+          :label="$t('workflowNotifyApproval')" :disabled="!canManage"
+          class="mt-0 mb-4" hide-details @change="toggleNotification"
+        />
+        <WorkflowNotificationForm
+          v-if="(kind === 'notification' || kind === 'approval') && node.notification"
+          :value="node.notification" :project-id="projectId" :sources="notificationSources"
+          :disabled="!canManage" :approval="kind === 'approval'" class="mb-5"
+          @input="setNotification"
+        />
 
         <v-text-field
           v-if="kind === 'delay'"
@@ -152,18 +168,22 @@
 
 <script>
 import TaskParamsForm from '@/components/TaskParamsForm.vue';
+import WorkflowNotificationForm from '@/components/workflow/WorkflowNotificationForm.vue';
+import { defaultNotification } from '@/lib/workflowNotifications';
 import { APP_ICONS } from '@/lib/constants';
 
 // Right-hand panel of the editor. `value` is the editor's working copy of the
 // node; the fields edit it in place and every change emits `input` so the
 // canvas can repaint the card.
 export default {
-  components: { TaskParamsForm },
+  components: { TaskParamsForm, WorkflowNotificationForm },
 
   props: {
     value: { type: Object, required: true },
     templates: { type: Array, default: () => [] },
     canManage: { type: Boolean, default: false },
+    projectId: { type: Number, required: true },
+    notificationSources: { type: Array, default: () => [] },
   },
 
   data() {
@@ -185,6 +205,7 @@ export default {
       return this.templates.find((t) => t.id === this.node.template_id) || null;
     },
     icon() {
+      if (this.kind === 'notification') return 'mdi-bell-outline';
       if (this.kind === 'approval') return 'mdi-account-check';
       if (this.kind === 'delay') return 'mdi-timer-outline';
       if (this.kind === 'note') return 'mdi-note-text-outline';
@@ -192,6 +213,7 @@ export default {
       return (app && APP_ICONS[app] && APP_ICONS[app].icon) || 'mdi-cog';
     },
     tileColor() {
+      if (this.kind === 'notification') return '#26a69a';
       if (this.kind === 'approval') return '#ab47bc';
       if (this.kind === 'delay') return '#ff9800';
       return null;
@@ -207,6 +229,7 @@ export default {
         { value: 'task', text: this.$t('workflowNodeKindTask') },
         { value: 'approval', text: this.$t('workflowNodeKindApproval') },
         { value: 'delay', text: this.$t('workflowNodeKindDelay') },
+        { value: 'notification', text: this.$t('workflowNodeKindNotification') },
       ];
     },
     noteOption() {
@@ -221,13 +244,20 @@ export default {
   },
 
   methods: {
+    setNotification(value) {
+      this.$set(this.node, 'notification', value);
+      this.emitChange();
+    },
+    toggleNotification(enabled) {
+      this.setNotification(enabled ? defaultNotification(this.$i18n.locale, this.kind === 'approval') : null);
+    },
     emitChange() {
       this.$emit('input', this.node);
     },
     onKindChanged() {
       const { node } = this;
       const { kind } = node;
-      if (kind === 'approval' || kind === 'delay') {
+      if (kind !== 'task') {
         node.template_id = null;
         node.task_params = null;
       }
@@ -242,6 +272,11 @@ export default {
       }
       if (kind === 'task' && !node.task_params) {
         node.task_params = {};
+      }
+      if (kind === 'notification' && !node.notification) {
+        this.$set(node, 'notification', defaultNotification(this.$i18n.locale));
+      } else if (kind !== 'notification' && kind !== 'approval') {
+        this.$set(node, 'notification', null);
       }
       this.emitChange();
     },

@@ -341,7 +341,7 @@ func TestBackupWorkflowRoundTrip(t *testing.T) {
 	require.NoError(t, err)
 	_, err = store.CreateWorkflowTemplate(db.WorkflowTemplate{ProjectID: project.ID, Name: "pipeline", Nodes: []db.WorkflowNode{
 		{ID: 1, TemplateID: tpl.ID, TaskParams: &db.TaskParams{Environment: `{"KEY":"value"}`}},
-		{ID: 2, Kind: db.WorkflowNodeApprovalKind, ApprovalMessage: new("Approve?")},
+		{ID: 2, Kind: db.WorkflowNodeApprovalKind, ApprovalMessage: new("Approve?"), Notification: &db.WorkflowNotificationConfig{Channel: "telegram", Message: "{{ source.error }}", Timezone: "UTC", SourceNodeID: new(1)}},
 	}, Edges: []db.WorkflowEdge{{SourceNodeID: 1, DestinationNodeID: 2, Condition: db.WorkflowEdgeOnSuccess}}})
 	require.NoError(t, err)
 	backup, err := GetBackup(project.ID, store, store)
@@ -370,6 +370,9 @@ func TestBackupWorkflowRoundTrip(t *testing.T) {
 	require.Equal(t, graph.Nodes[1].ID, graph.Edges[0].DestinationNodeID)
 	require.JSONEq(t, `{"KEY":"value"}`, graph.Nodes[0].TaskParams.Environment)
 	require.Equal(t, "Approve?", *graph.Nodes[1].ApprovalMessage)
+	require.NotNil(t, graph.Nodes[1].Notification)
+	require.Equal(t, "{{ source.error }}", graph.Nodes[1].Notification.Message)
+	require.Equal(t, graph.Nodes[0].ID, *graph.Nodes[1].Notification.SourceNodeID)
 }
 
 func isUnique(items []testItem) bool {

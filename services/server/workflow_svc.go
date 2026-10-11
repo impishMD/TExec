@@ -12,6 +12,7 @@ import (
 	"github.com/impishMD/TExec/pkg/common_errors"
 	"github.com/impishMD/TExec/pkg/task_logger"
 	"github.com/impishMD/TExec/pkg/tz"
+	"github.com/impishMD/TExec/services/alerting"
 	"github.com/impishMD/TExec/services/audit"
 	log "github.com/sirupsen/logrus"
 )
@@ -23,6 +24,7 @@ type WorkflowService interface {
 	ResolveWorkflowApproval(projectID, workflowID, runID, nodeID int, status db.WorkflowApprovalStatus, user *db.User) (db.WorkflowApproval, error)
 	HandleWorkflowTaskCompletion(db.Task) error
 	GetWorkflowRunArtifacts(projectID, runID int, currentTaskID *int) (map[string]any, error)
+	ProcessWorkflowNotifications(context.Context) error
 }
 
 // Kept next to the consumer to avoid a dependency from server to tasks.
@@ -32,20 +34,27 @@ type WorkflowTaskEnqueuer interface {
 }
 
 type workflowService struct {
-	repo     db.WorkflowManager
-	store    db.Store
-	queue    WorkflowTaskEnqueuer
-	recorder audit.Recorder
+	repo             db.WorkflowManager
+	store            db.Store
+	queue            WorkflowTaskEnqueuer
+	recorder         audit.Recorder
+	sendNotification WorkflowNotificationSender
 	// Active-active servers remain unsupported. Within the server, callbacks,
 	// API actions and the reconciler serialize progression of the same run.
 	locks [64]sync.Mutex
 }
 
-func NewWorkflowService(repo db.WorkflowManager, store db.Store, queue WorkflowTaskEnqueuer, recorder audit.Recorder) WorkflowService {
+func NewWorkflowService(repo db.WorkflowManager, store db.Store, queue WorkflowTaskEnqueuer, recorder audit.Recorder, sender ...WorkflowNotificationSender) WorkflowService {
 	if recorder == nil {
 		recorder = audit.Nop{}
 	}
-	return &workflowService{repo: repo, store: store, queue: queue, recorder: recorder}
+	send := func(ctx context.Context, p int, text, link, button string) error {
+		return (alerting.Service{Store: store}).SendWorkflowNotification(ctx, p, text, link, button, nil)
+	}
+	if len(sender) > 0 && sender[0] != nil {
+		send = sender[0]
+	}
+	return &workflowService{repo: repo, store: store, queue: queue, recorder: recorder, sendNotification: send}
 }
 func (s *workflowService) lock(runID int) func() {
 	mu := &s.locks[uint(runID)%uint(len(s.locks))]
@@ -167,6 +176,14 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 	for _, item := range delays {
 		byDelay[item.WorkflowNodeID] = item
 	}
+	notifications, err := s.repo.GetWorkflowNotifications(p, runID)
+	if err != nil {
+		return err
+	}
+	byNotification := map[int]db.WorkflowNotification{}
+	for _, item := range notifications {
+		byNotification[item.WorkflowNodeID] = item
+	}
 	incoming := map[int][]db.WorkflowEdge{}
 	for _, edge := range workflow.Edges {
 		incoming[edge.DestinationNodeID] = append(incoming[edge.DestinationNodeID], edge)
@@ -182,9 +199,19 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 			initiator = &user
 		}
 	}
-	activeTasks, waitingApprovals, waitingDelays, failed := 0, 0, 0, false
+	activeTasks, waitingApprovals, waitingDelays, waitingNotifications, failed := 0, 0, 0, 0, false
 	for _, node := range order {
-		if task, exists := byTask[node.ID]; exists {
+		if node.EffectiveKind() == db.WorkflowNodeNotificationKind && byNotification[node.ID].ID != 0 {
+			delivery := byNotification[node.ID]
+			if delivery.Pending() {
+				states[node.ID] = workflowActive
+				waitingNotifications++
+			} else if delivery.Status == "sent" || node.Notification.OnError != "fail" {
+				states[node.ID] = workflowSuccess
+			} else {
+				states[node.ID] = workflowFailure
+			}
+		} else if task, exists := byTask[node.ID]; exists {
 			states[node.ID] = workflowActive
 			if task.Status.IsFinished() && task.End != nil {
 				states[node.ID] = workflowFailure
@@ -205,6 +232,7 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 					s.record(audit.WorkflowApprovalTimeout, run, node.ID, nil)
 				}
 			}
+			byApproval[node.ID] = approval
 			switch approval.Status {
 			case db.WorkflowApprovalApproved:
 				states[node.ID] = workflowSuccess
@@ -221,6 +249,7 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 					return err
 				}
 			}
+			byDelay[node.ID] = delay
 			switch delay.Status {
 			case db.WorkflowDelaySuccess:
 				states[node.ID] = workflowSuccess
@@ -273,10 +302,17 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 				}
 				activeTasks++
 			case db.WorkflowNodeApprovalKind:
-				if _, err = s.repo.CreateWorkflowApproval(db.WorkflowApproval{ProjectID: p, WorkflowRunID: runID, WorkflowNodeID: node.ID}); err != nil {
+				approval, e := s.repo.CreateWorkflowApproval(db.WorkflowApproval{ProjectID: p, WorkflowRunID: runID, WorkflowNodeID: node.ID})
+				if e != nil {
+					return e
+				}
+				byApproval[node.ID] = approval
+				waitingApprovals++
+			case db.WorkflowNodeNotificationKind:
+				if err = s.queueNotification(workflow, run, node, byApproval, byTask, byDelay, byNotification, initiator); err != nil {
 					return err
 				}
-				waitingApprovals++
+				waitingNotifications++
 			case db.WorkflowNodeDelayKind:
 				if node.DelaySeconds == nil {
 					return s.failLaunch(&run, common_errors.NewValidationError("workflow delay is missing"))
@@ -287,9 +323,16 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 				waitingDelays++
 			}
 		}
+		// Reconcile after persisting the approval, including the crash window
+		// between creating a pending approval and adding its notification.
+		if approval, ok := byApproval[node.ID]; ok && approval.Status == db.WorkflowApprovalPending && node.Notification != nil {
+			if err = s.queueNotification(workflow, run, node, byApproval, byTask, byDelay, byNotification, initiator); err != nil {
+				return err
+			}
+		}
 		failed = failed || states[node.ID] == workflowFailure
 	}
-	if activeTasks+waitingApprovals+waitingDelays == 0 {
+	if activeTasks+waitingApprovals+waitingDelays+waitingNotifications == 0 {
 		status := db.WorkflowRunSuccess
 		if failed {
 			status = db.WorkflowRunFailed
@@ -297,7 +340,7 @@ func (s *workflowService) ProgressWorkflowRun(p, runID int, _ *db.User) error {
 		return s.finish(&run, status, nil)
 	}
 	run.Status = db.WorkflowRunRunning
-	if activeTasks+waitingDelays == 0 && waitingApprovals > 0 {
+	if activeTasks+waitingDelays+waitingNotifications == 0 && waitingApprovals > 0 {
 		run.Status = db.WorkflowRunApproval
 	}
 	_, err = s.repo.UpdateWorkflowRunStatusUnless(run, workflowFinished)
@@ -307,6 +350,9 @@ func (s *workflowService) finish(run *db.WorkflowRun, status db.WorkflowRunStatu
 	run.Status, run.End = status, new(tz.Now())
 	changed, err := s.repo.UpdateWorkflowRunStatusUnless(*run, workflowFinished)
 	if err == nil && changed {
+		if err = s.repo.CancelWorkflowNotifications(run.ProjectID, run.ID); err != nil {
+			return err
+		}
 		s.record(audit.WorkflowComplete, *run, 0, user)
 	}
 	return err
@@ -491,6 +537,24 @@ func NewWorkflowReconciler(repo db.WorkflowManager, service WorkflowService) *Wo
 func (r *WorkflowReconciler) Start() {
 	go func() {
 		defer close(r.done)
+		ctx, cancel := context.WithCancel(context.Background())
+		workerDone := make(chan struct{})
+		go func() {
+			defer close(workerDone)
+			ticker := time.NewTicker(time.Second)
+			defer ticker.Stop()
+			for {
+				if err := r.service.ProcessWorkflowNotifications(ctx); err != nil && ctx.Err() == nil {
+					log.WithError(err).Error("cannot deliver workflow notification")
+				}
+				select {
+				case <-ctx.Done():
+					return
+				case <-ticker.C:
+				}
+			}
+		}()
+		defer func() { cancel(); <-workerDone }()
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
 		for {

@@ -23,7 +23,8 @@ def latest_branch_run(runs, repository, sha):
     candidates = [run for run in runs if (
         run['head_sha'] == sha
         and run['event'] == 'push'
-        and run['head_branch'] in ('main',)
+        and (run['head_branch'] == 'main'
+             or (run['head_branch'] or '').startswith('release/'))
         and (run.get('head_repository') or {}).get('full_name', '').lower()
         == repository.lower()
     )]
@@ -50,7 +51,7 @@ def wait_for_ci(repository, sha, timeout=2400):
         if run is None:
             if now >= discovery_deadline:
                 raise RuntimeError(
-                    f'No branch CI found for {sha}. Push this commit to main '
+                    f'No branch CI found for {sha}. Push this commit to main or release/* '
                     'and let CI pass before retrying the release.'
                 )
             remaining = discovery_deadline - now

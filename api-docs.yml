@@ -1756,7 +1756,7 @@ definitions:
         type: integer
       kind:
         type: string
-        enum: [task, approval, note, delay]
+        enum: [task, approval, note, delay, notification]
       convergence_mode:
         type: string
         enum: [all, any]
@@ -1764,12 +1764,91 @@ definitions:
         type: integer
       approval_message:
         type: string
+      notification:
+        $ref: '#/definitions/WorkflowNotificationConfig'
       delay_seconds:
         type: integer
         minimum: 1
         description: Number of seconds to wait before continuing (delay kind only).
       task_params:
         $ref: '#/definitions/TaskPrams'
+
+  WorkflowNotificationConfig:
+    type: object
+    required: [channel, message]
+    description: Required on notification nodes; optional on approval nodes to notify when approval becomes pending. Project Telegram settings supply credentials and destination.
+    properties:
+      channel:
+        type: string
+        enum: [telegram]
+      message:
+        type: string
+        maxLength: 3000
+        description: Plain text with named substitutions only; no expressions or executable templates. Rendered output is capped at 4000 characters.
+        example: 'Approval required for {{ workflow.name }} run #{{ run.id }} at {{ date }} {{ time }}'
+      timezone:
+        type: string
+        default: UTC
+        example: Europe/Moscow
+      locale:
+        type: string
+        description: Language of generated status labels and link buttons (ru or en; other values use English).
+      source_node_id:
+        type: integer
+        description: Optional upstream node ID from this graph. Omit to use completed immediate predecessors. Remapped when the graph is saved.
+      on_error:
+        type: string
+        enum: [continue, fail]
+        default: continue
+        description: Notification-node result after three failed delivery attempts. Ignored for approval notifications; delivery errors never resolve approvals.
+
+  WorkflowNotificationPreviewRequest:
+    type: object
+    required: [notification]
+    properties:
+      notification:
+        $ref: '#/definitions/WorkflowNotificationConfig'
+
+  WorkflowNotificationPreview:
+    type: object
+    properties:
+      text:
+        type: string
+        description: Rendered message using synthetic sample run data.
+      variables:
+        type: array
+        items:
+          type: string
+          enum: [project.name, workflow.name, run.id, run.started_by, run.url, date, time, timezone, source.name, source.status, source.error, approval.deadline]
+
+  WorkflowNotificationDelivery:
+    type: object
+    description: Durable delivery state. The rendered message and credentials are not exposed.
+    properties:
+      id:
+        type: integer
+      project_id:
+        type: integer
+      workflow_run_id:
+        type: integer
+      workflow_node_id:
+        type: integer
+      status:
+        type: string
+        enum: [queued, sending, sent, failed, cancelled]
+      attempts:
+        type: integer
+      last_error:
+        type: string
+      created:
+        type: string
+        format: date-time
+      next_attempt_at:
+        type: string
+        format: date-time
+      resolved:
+        type: string
+        format: date-time
 
   WorkflowEdge:
     type: object
@@ -1876,6 +1955,8 @@ definitions:
         $ref: "#/definitions/Task"
       approval:
         $ref: "#/definitions/WorkflowApproval"
+      notification:
+        $ref: "#/definitions/WorkflowNotificationDelivery"
 
   WorkflowRunDetails:
     type: object
@@ -3498,6 +3579,38 @@ paths:
         204:
           description: repository removed
 
+  /project/{project_id}/repositories/{repository_id}/inventory-files:
+    parameters:
+      - $ref: "#/parameters/project_id"
+      - $ref: "#/parameters/repository_id"
+    get:
+      tags:
+        - repository
+      summary: List Ansible inventory file suggestions
+      description: >-
+        Returns up to 30 sorted paths relative to the repository root.
+        Includes YAML, INI and extensionless files; skips hidden directories,
+        group_vars and host_vars. Other paths may still be entered manually.
+        Uses the configured repository branch unless a branch is supplied.
+      parameters:
+        - name: branch
+          in: query
+          type: string
+          required: false
+      responses:
+        200:
+          description: Suggested inventory paths
+          schema:
+            type: array
+            items:
+              type: string
+        400:
+          description: Invalid branch
+        403:
+          description: Access denied
+        404:
+          description: Repository not found
+
   # project inventory
   /project/{project_id}/host_configs:
     parameters:
@@ -3864,6 +3977,54 @@ paths:
           description: Workflow template created
           schema:
             $ref: "#/definitions/WorkflowTemplate"
+
+  /project/{project_id}/workflows/notifications/preview:
+    parameters:
+      - $ref: '#/parameters/project_id'
+    post:
+      tags: [workflow]
+      summary: Preview a notification using sample data
+      description: Requires Manage project resources. Does not send a message or save settings.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/WorkflowNotificationPreviewRequest'
+      responses:
+        200:
+          description: Rendered preview and supported variables
+          schema:
+            $ref: '#/definitions/WorkflowNotificationPreview'
+        400:
+          description: Invalid configuration or substitutions
+        403:
+          description: Insufficient project permissions
+
+  /project/{project_id}/workflows/notifications/test:
+    parameters:
+      - $ref: '#/parameters/project_id'
+    post:
+      tags: [workflow]
+      summary: Send a sample notification to the project's configured Telegram chat
+      description: Requires Manage project resources. Uses saved project channel settings and adds an explicit test-message prefix. Does not save settings or execute a workflow.
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema:
+            $ref: '#/definitions/WorkflowNotificationPreviewRequest'
+      responses:
+        200:
+          description: Test message sent
+          schema:
+            $ref: '#/definitions/WorkflowNotificationPreview'
+        400:
+          description: Invalid configuration or substitutions
+        403:
+          description: Insufficient project permissions
+        502:
+          description: Channel disabled, unconfigured, or delivery failed
 
   /project/{project_id}/workflows/{workflow_id}:
     parameters:

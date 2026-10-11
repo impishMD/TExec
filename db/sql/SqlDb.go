@@ -106,6 +106,7 @@ func (d *SqlDbConnection) Connect() {
 	d.sql.AddTableWithName(db.WorkflowRun{}, "project__workflow_run").SetKeys(true, "id")
 	d.sql.AddTableWithName(db.WorkflowApproval{}, "project__workflow_approval").SetKeys(true, "id")
 	d.sql.AddTableWithName(db.WorkflowDelay{}, "project__workflow_delay").SetKeys(true, "id")
+	d.sql.AddTableWithName(db.WorkflowNotification{}, "project__workflow_notification").SetKeys(true, "id")
 	d.sql.AddTableWithName(db.UserExternalIdentity{}, "user__external_identity").SetKeys(true, "id")
 
 	if d.GetDialect() == util.DbDriverSQLite {

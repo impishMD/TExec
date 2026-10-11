@@ -1,12 +1,13 @@
 package sql
 
 import (
+	"encoding/json"
 	"github.com/impishMD/TExec/db"
 	"github.com/impishMD/TExec/pkg/common_errors"
 	"github.com/impishMD/TExec/pkg/tz"
 )
 
-const workflowNodeColumns = "id,workflow_template_id,revision_id,template_id,kind,convergence_mode,approval_timeout,approval_message,task_params_id,note,delay_seconds,position_x,position_y"
+const workflowNodeColumns = "id,workflow_template_id,revision_id,template_id,kind,convergence_mode,approval_timeout,approval_message,task_params_id,note,delay_seconds,position_x,position_y,notification"
 
 func (d *SqlDb) GetWorkflowTemplates(projectID int, params db.RetrieveQueryParams) ([]db.WorkflowTemplate, error) {
 	items := []db.WorkflowTemplate{}
@@ -58,6 +59,11 @@ func (d *SqlDb) GetWorkflowRevisionGraph(p, revisionID int) (workflow db.Workflo
 		return
 	}
 	for i := range workflow.Nodes {
+		if data := workflow.Nodes[i].NotificationJSON; data != nil {
+			if err = json.Unmarshal([]byte(*data), &workflow.Nodes[i].Notification); err != nil {
+				return
+			}
+		}
 		if id := workflow.Nodes[i].TaskParamsID; id != nil {
 			var params db.TaskParams
 			err = d.selectOne(&params, "select * from project__task_params where project_id=? and id=?", p, *id)
@@ -141,6 +147,7 @@ func (d *SqlDb) saveWorkflow(workflow db.WorkflowTemplate, create bool) (db.Work
 	ids := map[int]int{}
 	for _, original := range workflow.Nodes {
 		node := original
+		node.NotificationJSON = nil
 		node.ID, node.WorkflowTemplateID, node.RevisionID = 0, workflow.ID, revision.ID
 		node.Kind, node.ConvergenceMode = node.EffectiveKind(), node.EffectiveConvergenceMode()
 		node.TaskParamsID = nil
@@ -160,6 +167,23 @@ func (d *SqlDb) saveWorkflow(workflow db.WorkflowTemplate, create bool) (db.Work
 			return db.WorkflowTemplate{}, err
 		}
 		ids[original.ID] = node.ID
+	}
+	// Node IDs belong to immutable revisions. Remap notification references too.
+	for _, node := range workflow.Nodes {
+		if node.Notification == nil {
+			continue
+		}
+		config := *node.Notification
+		if config.SourceNodeID != nil {
+			config.SourceNodeID = new(ids[*config.SourceNodeID])
+		}
+		data, marshalErr := json.Marshal(config)
+		if marshalErr != nil {
+			return db.WorkflowTemplate{}, marshalErr
+		}
+		if _, err = d.execTx(tx, "update project__workflow_node set notification=? where id=?", string(data), ids[node.ID]); err != nil {
+			return db.WorkflowTemplate{}, err
+		}
 	}
 	for _, original := range workflow.Edges {
 		edge := original

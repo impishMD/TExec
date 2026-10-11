@@ -10,10 +10,10 @@ Choose an unused version and tag for every release. Container repositories are
 
 ## Prepare
 
-1. Update `VERSION`, frontend package versions and deployment examples.
+1. Create `release/<version>` from the feature branch being released. Update `VERSION`, frontend package versions and deployment examples.
 2. Update `CHANGELOG.md` and add `release-notes/en/v<version>.md` and `release-notes/ru/v<version>.md` for GitHub Releases. Keep user guides focused on current behavior.
 3. Run `make test`, `make check`, `make build`, runtime smoke tests, and `make release-check`.
-4. Commit/push changes and wait for CI and Packages to pass.
+4. Commit/push the release branch and wait for CI, Packages and Helm CI to pass. The tag must point to the same verified commit; merging into `main` is not required before publication.
 5. Tag that verified commit and push the tag:
 
    ```sh
@@ -35,7 +35,7 @@ Environment protection rules remain effective. Do not store token values in this
 
 ## Publication
 
-The Release workflow requires successful CI from a push to `main` for the
+The Release workflow requires successful CI from a push to `main` or `release/*` for the
 exact tagged commit. It waits for an ongoing run; missing or failed CI blocks publication.
 Tests (including `go test -race`) and temporary CI container builds run in branch CI only.
 The check uses the [workflow runs API](https://docs.github.com/en/rest/actions/workflow-runs#list-workflow-runs-for-a-workflow).

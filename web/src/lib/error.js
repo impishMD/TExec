@@ -2,6 +2,10 @@ import i18n from '@/plugins/i18';
 
 // Translate known form errors; preserve arbitrary backend/command diagnostics.
 const formErrors = {
+  'Telegram notifications are disabled for this project': 'workflowNotificationDisabled',
+  'Notification delivery attempts exhausted': 'workflowNotificationExhausted',
+  'unknown notification timezone': 'workflowNotificationTimezoneInvalid',
+  'notification source must be an upstream node': 'workflowNotificationSourceInvalid',
   'Invalid Telegram bot token': 'alertsInvalidToken',
   'invalid stored Telegram bot token': 'alertsInvalidToken',
   'Enter a Telegram chat ID or channel @username': 'alertsInvalidChat',
@@ -12,6 +16,8 @@ const formErrors = {
   'could not load Telegram settings': 'alertsSettingsFailed',
   'could not load global Telegram settings': 'alertsSettingsFailed',
   'could not decrypt Telegram bot token': 'alertsDecryptFailed',
+  'Telegram bot token is not configured': 'alertsMissingToken',
+  'Telegram chat is not configured': 'alertsInvalidChat',
 
   'invalid project icon': 'projectIconInvalid',
   'invalid key source prefix': 'keySourceInvalid',

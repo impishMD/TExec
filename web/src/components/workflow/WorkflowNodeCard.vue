@@ -40,6 +40,15 @@
         :title="title"
       >{{ title }}</div>
       <div class="WorkflowNodeCard__sub" :title="subtitle">{{ subtitle }}</div>
+      <div
+        v-if="run && run.delivery" class="WorkflowNodeCard__sub"
+        :title="deliveryError"
+      >
+        <v-icon x-small :color="run.delivery.status === 'failed' ? 'error' : 'primary'">
+          mdi-bell-outline
+        </v-icon>
+        {{ $t(`workflowDelivery_${run.delivery.status}`) }}
+      </div>
 
       <div v-if="showApprovalActions" class="WorkflowNodeCard__actions">
         <v-btn
@@ -94,6 +103,7 @@
 
 <script>
 import DisplayLabelsMixin from '@/components/DisplayLabelsMixin';
+import { getErrorMessage } from '@/lib/error';
 import { APP_ICONS, APP_SHORT_TITLE } from '@/lib/constants';
 import { formatDurationLong, statusKind } from '@/lib/workflowGraph';
 
@@ -118,6 +128,10 @@ export default {
   },
 
   computed: {
+    deliveryError() {
+      const error = this.run?.delivery?.last_error;
+      return error ? getErrorMessage({ response: { data: { error } } }) : '';
+    },
     node() {
       return this.store.nodes[this.nodeId] || {};
     },
@@ -147,6 +161,7 @@ export default {
       return this.template ? this.template.app : null;
     },
     icon() {
+      if (this.kind === 'notification') return 'mdi-bell-outline';
       if (this.kind === 'approval') return 'mdi-account-check';
       if (this.kind === 'delay') return 'mdi-timer-outline';
       const apps = this.store.apps || {};
@@ -157,6 +172,7 @@ export default {
       return 'mdi-cog';
     },
     tileColor() {
+      if (this.kind === 'notification') return '#26a69a';
       if (this.kind === 'approval') return '#ab47bc';
       if (this.kind === 'delay') return '#ff9800';
       const apps = this.store.apps || {};
@@ -177,6 +193,7 @@ export default {
       return this.kind === 'task' && !this.template;
     },
     title() {
+      if (this.kind === 'notification') return this.$t('workflowNodeKindNotification');
       if (this.kind === 'approval') return this.$t('workflowNodeKindApproval');
       if (this.kind === 'delay') return this.$t('workflowNodeKindDelay');
       if (this.template) return this.template.name;
@@ -199,6 +216,7 @@ export default {
     },
     configSubtitle() {
       const parts = [];
+      if (this.kind === 'notification') parts.push('Telegram');
       if (this.kind === 'task') {
         if (this.appTitle) parts.push(this.appTitle);
         if (this.hasParamOverrides) parts.push(this.$t('workflowParamsOverridden'));

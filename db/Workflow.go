@@ -17,10 +17,11 @@ const (
 type WorkflowNodeKind string
 
 const (
-	WorkflowNodeTaskKind     WorkflowNodeKind = "task"
-	WorkflowNodeApprovalKind WorkflowNodeKind = "approval"
-	WorkflowNodeNoteKind     WorkflowNodeKind = "note"
-	WorkflowNodeDelayKind    WorkflowNodeKind = "delay"
+	WorkflowNodeTaskKind         WorkflowNodeKind = "task"
+	WorkflowNodeApprovalKind     WorkflowNodeKind = "approval"
+	WorkflowNodeNoteKind         WorkflowNodeKind = "note"
+	WorkflowNodeDelayKind        WorkflowNodeKind = "delay"
+	WorkflowNodeNotificationKind WorkflowNodeKind = "notification"
 )
 
 type WorkflowConvergenceMode string
@@ -86,11 +87,13 @@ type WorkflowNode struct {
 	WorkflowTemplateID int `db:"workflow_template_id" json:"workflow_template_id" backup:"-"`
 	RevisionID         int `db:"revision_id" json:"-" backup:"-"`
 
-	TemplateID      int                     `db:"template_id" json:"template_id,omitempty" backup:"-"`
-	Kind            WorkflowNodeKind        `db:"kind" json:"kind,omitempty" backup:"kind"`
-	ConvergenceMode WorkflowConvergenceMode `db:"convergence_mode" json:"convergence_mode,omitempty" backup:"convergence_mode"`
-	ApprovalTimeout *int                    `db:"approval_timeout" json:"approval_timeout,omitempty" backup:"approval_timeout"`
-	ApprovalMessage *string                 `db:"approval_message" json:"approval_message,omitempty" backup:"approval_message"`
+	TemplateID       int                         `db:"template_id" json:"template_id,omitempty" backup:"-"`
+	Kind             WorkflowNodeKind            `db:"kind" json:"kind,omitempty" backup:"kind"`
+	ConvergenceMode  WorkflowConvergenceMode     `db:"convergence_mode" json:"convergence_mode,omitempty" backup:"convergence_mode"`
+	ApprovalTimeout  *int                        `db:"approval_timeout" json:"approval_timeout,omitempty" backup:"approval_timeout"`
+	ApprovalMessage  *string                     `db:"approval_message" json:"approval_message,omitempty" backup:"approval_message"`
+	Notification     *WorkflowNotificationConfig `db:"-" json:"notification,omitempty" backup:"notification"`
+	NotificationJSON *string                     `db:"notification" json:"-" backup:"-"`
 
 	TaskParamsID *int        `db:"task_params_id" json:"-" backup:"-"`
 	TaskParams   *TaskParams `db:"-" json:"task_params,omitempty" backup:"task_params"`
@@ -211,7 +214,8 @@ func (kind WorkflowNodeKind) Validate() error {
 	case WorkflowNodeTaskKind,
 		WorkflowNodeApprovalKind,
 		WorkflowNodeNoteKind,
-		WorkflowNodeDelayKind:
+		WorkflowNodeDelayKind,
+		WorkflowNodeNotificationKind:
 		return nil
 	default:
 		return common_errors.NewValidationError("workflow node kind is invalid")
