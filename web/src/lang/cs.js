@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Šablony zpráv',
+  alertMessageTemplatesHint: 'Společné zprávy pro všechny kanály projektu. Nastavení úloh zůstává platné.',
+  alertMessageTemplatesUnsaved: 'Uložením použijete šablony. Do té doby zůstane stávající formát.',
+  alertMessageLanguage: 'Jazyk zpráv',
+  alertMessageSuccess: 'Úspěch',
+  alertMessageError: 'Chyba',
+  alertMessageReset: 'Obnovit tuto šablonu',
+  alertMessageVariablesHint: 'Prostý text. Datum a čas: dokončení úlohy. Chybějící hodnoty: —. Test odešle příklad do uloženého kanálu Telegram.',
+  alertMessageOtherInvalid: 'Před uložením zkontrolujte šablonu na druhé kartě.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

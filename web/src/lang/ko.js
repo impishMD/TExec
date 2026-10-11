@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: '메시지 템플릿',
+  alertMessageTemplatesHint: '모든 프로젝트 채널의 공통 메시지입니다. 작업 알림 설정이 우선 적용됩니다.',
+  alertMessageTemplatesUnsaved: '저장하면 적용됩니다. 그전까지 기존 형식을 유지합니다.',
+  alertMessageLanguage: '메시지 언어',
+  alertMessageSuccess: '성공',
+  alertMessageError: '오류',
+  alertMessageReset: '이 템플릿 초기화',
+  alertMessageVariablesHint: '일반 텍스트입니다. 날짜와 시간은 작업 완료 시점입니다. 없는 값은 — 로 표시합니다. 테스트는 저장된 Telegram 채널로 예제를 보냅니다.',
+  alertMessageOtherInvalid: '저장 전에 다른 탭의 템플릿을 확인하세요.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

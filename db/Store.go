@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/impishMD/TExec/pkg/taskmessage"
 	"reflect"
 	"slices"
 	"strings"
@@ -248,6 +249,7 @@ type ProjectStore interface {
 	CreateProject(project Project) (Project, error)
 	DeleteProject(projectID int) error
 	UpdateProject(project Project) error
+	SetProjectNotificationTemplates(projectID int, settings taskmessage.Settings) error
 	GetProjectUsers(projectID int, params RetrieveQueryParams) ([]UserWithProjectRole, error)
 	CreateProjectUser(projectUser ProjectUser) (ProjectUser, error)
 	DeleteProjectUser(projectID int, userID int) error

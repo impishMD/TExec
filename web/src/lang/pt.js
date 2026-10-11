@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Modelos de mensagens',
+  alertMessageTemplatesHint: 'Mensagens comuns a todos os canais do projeto. Mantêm-se as preferências das tarefas.',
+  alertMessageTemplatesUnsaved: 'Guarde para aplicar os modelos. Até lá mantém-se o formato atual.',
+  alertMessageLanguage: 'Idioma das mensagens',
+  alertMessageSuccess: 'Sucesso',
+  alertMessageError: 'Erro',
+  alertMessageReset: 'Repor este modelo',
+  alertMessageVariablesHint: 'Texto simples. Data e hora: conclusão da tarefa. Valores em falta: —. O teste envia o exemplo ao canal Telegram guardado.',
+  alertMessageOtherInvalid: 'Verifique o modelo no outro separador antes de guardar.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

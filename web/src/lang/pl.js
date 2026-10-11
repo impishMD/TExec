@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Szablony wiadomości',
+  alertMessageTemplatesHint: 'Wspólne wiadomości dla wszystkich kanałów projektu. Ustawienia zadań nadal obowiązują.',
+  alertMessageTemplatesUnsaved: 'Zapisz, aby zastosować szablony. Do tego czasu pozostaje obecny format.',
+  alertMessageLanguage: 'Język wiadomości',
+  alertMessageSuccess: 'Sukces',
+  alertMessageError: 'Błąd',
+  alertMessageReset: 'Przywróć ten szablon',
+  alertMessageVariablesHint: 'Zwykły tekst. Data i czas: zakończenie zadania. Brakujące wartości: —. Test wysyła przykład do zapisanego kanału Telegram.',
+  alertMessageOtherInvalid: 'Przed zapisaniem sprawdź szablon na drugiej karcie.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

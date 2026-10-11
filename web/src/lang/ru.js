@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Шаблоны сообщений',
+  alertMessageTemplatesHint: 'Сообщения об успехе и ошибке общие для всех каналов проекта. Настройки отключения оповещений в шаблонах задач сохраняют приоритет.',
+  alertMessageTemplatesUnsaved: 'Сохраните шаблоны, чтобы применить их. До этого оповещения будут приходить в прежнем формате.',
+  alertMessageLanguage: 'Язык сообщений',
+  alertMessageSuccess: 'Успех',
+  alertMessageError: 'Ошибка',
+  alertMessageReset: 'Сбросить этот шаблон',
+  alertMessageVariablesHint: 'Используется обычный текст. Дата и время — момент завершения задачи. Если значение переменной отсутствует, выводится —. Кнопка тестирования отправляет выбранный пример в сохранённый канал Telegram проекта.',
+  alertMessageOtherInvalid: 'Проверьте шаблон на соседней вкладке перед сохранением.',
+
   workflowNodeKindNotification: 'Оповещение',
   workflowNotificationChannel: 'Канал',
   workflowNotificationChannelHint: 'Используются чат и бот Telegram из настроек оповещений проекта.',

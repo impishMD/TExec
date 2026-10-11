@@ -2,6 +2,7 @@ package project
 
 import (
 	"encoding/json"
+	"github.com/impishMD/TExec/pkg/taskmessage"
 	"testing"
 
 	"github.com/impishMD/TExec/db/sql"
@@ -23,9 +24,12 @@ func TestBackupProject(t *testing.T) {
 
 	store := sql.InitConfigCreateTestStore()
 
+	settingsJSON, err := json.Marshal(taskmessage.Defaults("ru"))
+	require.NoError(t, err)
 	proj, err := store.CreateProject(db.Project{
-		Name: "Test 123",
-		Icon: new("mdi-server"),
+		NotificationTemplates: new(string(settingsJSON)),
+		Name:                  "Test 123",
+		Icon:                  new("mdi-server"),
 	})
 	assert.NoError(t, err)
 
@@ -98,6 +102,7 @@ func TestBackupProject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, restoredProj.Name, "Test 1234")
 	assert.Equal(t, proj.Icon, restoredProj.Icon)
+	assert.Equal(t, proj.NotificationTemplates, restoredProj.NotificationTemplates)
 
 	restoredTemplates, err := store.GetTemplates(restoredProj.ID, db.TemplateFilter{}, db.RetrieveQueryParams{})
 	assert.NoError(t, err)

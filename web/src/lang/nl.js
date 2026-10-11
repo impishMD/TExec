@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Berichtsjablonen',
+  alertMessageTemplatesHint: 'Gemeenschappelijke berichten voor alle projectkanalen. De taakvoorkeuren blijven gelden.',
+  alertMessageTemplatesUnsaved: 'Sla op om de sjablonen toe te passen. Tot dan blijft de huidige opmaak behouden.',
+  alertMessageLanguage: 'Berichttaal',
+  alertMessageSuccess: 'Succes',
+  alertMessageError: 'Fout',
+  alertMessageReset: 'Dit sjabloon herstellen',
+  alertMessageVariablesHint: 'Platte tekst. Datum en tijd: voltooiing van de taak. Ontbrekende waarden: —. De test stuurt het voorbeeld naar het opgeslagen Telegram-kanaal.',
+  alertMessageOtherInvalid: 'Controleer het sjabloon op het andere tabblad voordat u opslaat.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

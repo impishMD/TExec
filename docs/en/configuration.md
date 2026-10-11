@@ -42,6 +42,36 @@ backups, not project JSON exports.
 Automation can use the administrator-only `GET /api/settings` and `PUT /api/settings`
 endpoints with `{"use_remote_runner": true}` or `{"use_remote_runner": false}`.
 
+## Project message templates
+
+Open **Dashboard → Settings → Alerts → Message templates** to set separate
+success and error messages. Templates are shared across project channels,
+including Telegram. A task template's success/error notification suppression
+still takes precedence. Workflow node messages and approval requests remain
+independent.
+
+Variables: `project.name`, `template.name`, `task.id`, `task.status`,
+`task.started_by`, `task.url`, `task.message`, `task.version`, `task.error`,
+`date`, `time`, `timezone`. Insert them as `{{ task.id }}` or use the selector.
+Messages are plain text: no HTML or executable expressions. The message language
+controls `task.status` (Success/Error or Успешно/Ошибка); custom text is not
+translated. Date and time refer to task completion in the selected timezone.
+Missing values appear as `—`. The author is the user's name or the project API
+token's name; absent authors appear as `—`.
+
+`task.error` includes a short excerpt of error-marked log lines, never the entire
+log. Known credential patterns are masked; arbitrary secrets cannot be inferred.
+Templates are limited to 3000 Unicode characters, rendered messages to 4000
+(longer results are truncated).
+
+Preview uses sample data. **Test notification** sends the selected example with
+a test prefix through the saved project Telegram settings, without saving the
+form. The channel must be enabled and configured. **Reset this template** restores
+the selected tab's text for the chosen language; **Save** applies it. Existing
+projects retain legacy formatting until templates are first saved. Settings are
+included in project backups and applied on the server, including for remote
+runner tasks.
+
 ## Telegram alerts
 
 Open **Management (gear) → Alerts → Telegram** to save the default bot token

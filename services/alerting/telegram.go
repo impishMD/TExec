@@ -22,6 +22,12 @@ func (s Service) SendTelegram(projectID int, text string, client *http.Client) (
 	return s.sendProjectTelegram(context.Background(), projectID, text, "", "", false, client)
 }
 
+// SendTaskNotification delivers channel-independent plain text with the saved
+// project destination. Disabled channels are a no-op, as for legacy task alerts.
+func (s Service) SendTaskNotification(ctx context.Context, projectID int, text string, client *http.Client) (bool, error) {
+	return s.sendProjectTelegram(ctx, projectID, text, "", "", true, client)
+}
+
 // SendWorkflowNotification uses plain text so substituted names and log snippets
 // cannot become Telegram HTML. Credentials and destinations stay in project settings.
 func (s Service) SendWorkflowNotification(ctx context.Context, projectID int, text, link, button string, client *http.Client) error {

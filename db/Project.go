@@ -14,5 +14,6 @@ type Project struct {
 	AlertChat              *string   `db:"alert_chat" json:"alert_chat,omitempty"`
 	MaxParallelTasks       int       `db:"max_parallel_tasks" json:"max_parallel_tasks,omitempty"`
 	Type                   string    `db:"type" json:"type"`
+	NotificationTemplates  *string   `db:"notification_templates" json:"notification_templates,omitempty"`
 	DefaultSecretStorageID *int      `db:"default_secret_storage_id" json:"default_secret_storage_id,omitempty" backup:"-"`
 }

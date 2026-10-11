@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'Plantillas de mensajes',
+  alertMessageTemplatesHint: 'Mensajes comunes a todos los canales del proyecto. Se respetan las preferencias de las tareas.',
+  alertMessageTemplatesUnsaved: 'Guarde para aplicar las plantillas. Hasta entonces se mantiene el formato actual.',
+  alertMessageLanguage: 'Idioma de los mensajes',
+  alertMessageSuccess: 'Éxito',
+  alertMessageError: 'Error',
+  alertMessageReset: 'Restablecer esta plantilla',
+  alertMessageVariablesHint: 'Texto sin formato. Fecha y hora: finalización de la tarea. Valores ausentes: —. La prueba envía el ejemplo al canal Telegram guardado.',
+  alertMessageOtherInvalid: 'Revise la plantilla de la otra pestaña antes de guardar.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

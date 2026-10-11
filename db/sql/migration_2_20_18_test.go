@@ -18,7 +18,7 @@ func TestMigration_2_20_18_PreservesUsersAndStorageReferences(t *testing.T) {
 	require.NoError(t, err)
 	_, err = store.exec("update `user` set pro = ? where id = ?", true, user.ID)
 	require.NoError(t, err)
-	project, err := store.CreateProject(db.Project{Name: "Existing project"})
+	project, err := createLegacyTestProject(store, db.Project{Name: "Existing project"})
 	require.NoError(t, err)
 	storage, err := store.CreateSecretStorage(db.SecretStorage{
 		ProjectID: project.ID, Name: "Secrets", Type: "openbao", ReadOnly: true,

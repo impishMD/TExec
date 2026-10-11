@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: '訊息範本',
+  alertMessageTemplatesHint: '所有專案管道共用訊息。任務通知設定仍然優先。',
+  alertMessageTemplatesUnsaved: '儲存後套用範本。在此之前保持現有格式。',
+  alertMessageLanguage: '訊息語言',
+  alertMessageSuccess: '成功',
+  alertMessageError: '錯誤',
+  alertMessageReset: '重設此範本',
+  alertMessageVariablesHint: '僅支援純文字。日期和時間表示任務完成時間。缺少值顯示為 —。測試會將範例傳送至已儲存的 Telegram 管道。',
+  alertMessageOtherInvalid: '儲存前請檢查另一個分頁中的範本。',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

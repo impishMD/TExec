@@ -1,4 +1,14 @@
 export default {
+  alertMessageTemplates: 'メッセージテンプレート',
+  alertMessageTemplatesHint: '全プロジェクトチャネル共通のメッセージです。タスクの通知設定が優先されます。',
+  alertMessageTemplatesUnsaved: '保存すると適用されます。それまでは従来の形式を維持します。',
+  alertMessageLanguage: 'メッセージの言語',
+  alertMessageSuccess: '成功',
+  alertMessageError: 'エラー',
+  alertMessageReset: 'このテンプレートをリセット',
+  alertMessageVariablesHint: 'プレーンテキストのみ。日時はタスク完了時刻です。値がない場合は — を表示します。テストは保存済みのTelegramチャネルに例を送信します。',
+  alertMessageOtherInvalid: '保存前にもう一方のタブを確認してください。',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

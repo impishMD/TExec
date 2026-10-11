@@ -2,7 +2,9 @@ package tasks
 
 import (
 	"bytes"
+	"context"
 	"embed"
+	"encoding/json"
 	"fmt"
 	"github.com/impishMD/TExec/services/alerting"
 	"html"
@@ -22,11 +24,12 @@ var templates embed.FS
 
 // Alert represents an alert that will be templated and sent to the appropriate service
 type Alert struct {
-	Name   string
-	Author string
-	Color  string
-	Task   alertTask
-	Chat   alertChat
+	Name    string
+	Message string
+	Author  string
+	Color   string
+	Task    alertTask
+	Chat    alertChat
 }
 
 type alertTask struct {
@@ -51,7 +54,7 @@ func (t *TaskRunner) shouldSkipStatusAlert() bool {
 	return false
 }
 
-func (t *TaskRunner) sendMailAlert() {
+func (t *TaskRunner) sendMailAlert(message string) {
 	if !util.Config.EmailAlert || !t.alert {
 		return
 	}
@@ -64,9 +67,10 @@ func (t *TaskRunner) sendMailAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("email"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("email"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -128,15 +132,22 @@ func (t *TaskRunner) sendMailAlert() {
 	}
 }
 
-func (t *TaskRunner) sendTelegramAlert() {
+func (t *TaskRunner) sendTelegramAlert(message string) {
 	if t.shouldSkipStatusAlert() {
 		return
 	}
 	author, version := t.alertInfos()
-	message := fmt.Sprintf("<code>%s</code>\n#%d <b>%s</b> <code>%s</code> - %s\nby %s\n%s",
+	legacy := fmt.Sprintf("<code>%s</code>\n#%d <b>%s</b> <code>%s</code> - %s\nby %s\n%s",
 		html.EscapeString(t.Template.Name), t.Task.ID, html.EscapeString(t.Task.Status.Format()),
 		html.EscapeString(version), html.EscapeString(t.Task.Message), html.EscapeString(author), html.EscapeString(t.taskLink()))
-	sent, err := (alerting.Service{Store: t.pool.store}).SendTelegram(t.Template.ProjectID, message, nil)
+	service := alerting.Service{Store: t.pool.store}
+	var sent bool
+	var err error
+	if message != "" {
+		sent, err = service.SendTaskNotification(context.Background(), t.Template.ProjectID, message, nil)
+	} else {
+		sent, err = service.SendTelegram(t.Template.ProjectID, legacy, nil)
+	}
 	if err != nil {
 		t.Log("Can't send Telegram alert: " + err.Error())
 	} else if sent {
@@ -144,7 +155,7 @@ func (t *TaskRunner) sendTelegramAlert() {
 	}
 }
 
-func (t *TaskRunner) sendSlackAlert() {
+func (t *TaskRunner) sendSlackAlert(message string) {
 	if !util.Config.SlackAlert || !t.alert {
 		return
 	}
@@ -157,9 +168,10 @@ func (t *TaskRunner) sendSlackAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("slack"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("slack"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -169,7 +181,7 @@ func (t *TaskRunner) sendSlackAlert() {
 		},
 	}
 
-	tpl, err := template.ParseFS(templates, "templates/slack.tmpl")
+	tpl, err := parseAlertTemplate("slack.tmpl")
 
 	if err != nil {
 		t.Log("Can't parse slack alert template!")
@@ -207,7 +219,7 @@ func (t *TaskRunner) sendSlackAlert() {
 	}
 }
 
-func (t *TaskRunner) sendRocketChatAlert() {
+func (t *TaskRunner) sendRocketChatAlert(message string) {
 	if !util.Config.RocketChatAlert || !t.alert {
 		return
 	}
@@ -220,9 +232,10 @@ func (t *TaskRunner) sendRocketChatAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("rocketchat"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("rocketchat"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -232,7 +245,7 @@ func (t *TaskRunner) sendRocketChatAlert() {
 		},
 	}
 
-	tpl, err := template.ParseFS(templates, "templates/rocketchat.tmpl")
+	tpl, err := parseAlertTemplate("rocketchat.tmpl")
 
 	if err != nil {
 		t.Log("Can't parse rocketchat alert template!")
@@ -269,7 +282,7 @@ func (t *TaskRunner) sendRocketChatAlert() {
 	}
 }
 
-func (t *TaskRunner) sendMicrosoftTeamsAlert() {
+func (t *TaskRunner) sendMicrosoftTeamsAlert(message string) {
 	if !util.Config.MicrosoftTeamsAlert || !t.alert {
 		return
 	}
@@ -282,9 +295,10 @@ func (t *TaskRunner) sendMicrosoftTeamsAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("microsoft-teams"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("microsoft-teams"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -294,7 +308,7 @@ func (t *TaskRunner) sendMicrosoftTeamsAlert() {
 		},
 	}
 
-	tpl, err := template.ParseFS(templates, "templates/microsoft-teams.tmpl")
+	tpl, err := parseAlertTemplate("microsoft-teams.tmpl")
 
 	if err != nil {
 		t.Log("Can't parse microsoft teams alert template!")
@@ -331,7 +345,7 @@ func (t *TaskRunner) sendMicrosoftTeamsAlert() {
 	}
 }
 
-func (t *TaskRunner) sendDingTalkAlert() {
+func (t *TaskRunner) sendDingTalkAlert(message string) {
 	if !util.Config.DingTalkAlert || !t.alert {
 		return
 	}
@@ -344,9 +358,10 @@ func (t *TaskRunner) sendDingTalkAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("dingtalk"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("dingtalk"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -356,7 +371,7 @@ func (t *TaskRunner) sendDingTalkAlert() {
 		},
 	}
 
-	tpl, err := template.ParseFS(templates, "templates/dingtalk.tmpl")
+	tpl, err := parseAlertTemplate("dingtalk.tmpl")
 
 	if err != nil {
 		t.Log("Can't parse dingtalk alert template!")
@@ -394,7 +409,7 @@ func (t *TaskRunner) sendDingTalkAlert() {
 	}
 }
 
-func (t *TaskRunner) sendGotifyAlert() {
+func (t *TaskRunner) sendGotifyAlert(message string) {
 	if !util.Config.GotifyAlert || !t.alert {
 		return
 	}
@@ -407,9 +422,10 @@ func (t *TaskRunner) sendGotifyAlert() {
 	author, version := t.alertInfos()
 
 	alert := Alert{
-		Name:   t.Template.Name,
-		Author: author,
-		Color:  t.alertColor("gotify"),
+		Name:    t.Template.Name,
+		Message: message,
+		Author:  author,
+		Color:   t.alertColor("gotify"),
 		Task: alertTask{
 			ID:      strconv.Itoa(t.Task.ID),
 			URL:     t.taskLink(),
@@ -419,7 +435,7 @@ func (t *TaskRunner) sendGotifyAlert() {
 		},
 	}
 
-	tpl, err := template.ParseFS(templates, "templates/gotify.tmpl")
+	tpl, err := parseAlertTemplate("gotify.tmpl")
 
 	if err != nil {
 		t.Log("Can't parse gotify alert template!")
@@ -536,4 +552,11 @@ func (t *TaskRunner) taskLink() string {
 		t.Template.ID,
 		t.Task.ID,
 	)
+}
+
+func parseAlertTemplate(name string) (*template.Template, error) {
+	return template.New(name).Funcs(template.FuncMap{"json": func(value string) string {
+		data, _ := json.Marshal(value)
+		return string(data)
+	}}).ParseFS(templates, "templates/"+name)
 }

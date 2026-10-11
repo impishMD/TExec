@@ -1,8 +1,10 @@
 package sql
 
 import (
+	"encoding/json"
 	"github.com/Masterminds/squirrel"
 	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/pkg/taskmessage"
 	"github.com/impishMD/TExec/pkg/tz"
 )
 
@@ -10,12 +12,15 @@ func (d *SqlDb) CreateProject(project db.Project) (newProject db.Project, err er
 	if err = project.ValidateIcon(); err != nil {
 		return
 	}
+	if _, err = taskmessage.Parse(project.NotificationTemplates); err != nil {
+		return
+	}
 	project.Created = tz.Now()
 
 	insertId, err := d.insert(
 		"id",
-		"insert into project(name, created, type, alert, alert_chat, max_parallel_tasks, icon) values (?, ?, ?, ?, ?, ?, ?)",
-		project.Name, project.Created, project.Type, project.Alert, project.AlertChat, project.MaxParallelTasks, project.Icon)
+		"insert into project(name, created, type, alert, alert_chat, max_parallel_tasks, icon, notification_templates) values (?, ?, ?, ?, ?, ?, ?, ?)",
+		project.Name, project.Created, project.Type, project.Alert, project.AlertChat, project.MaxParallelTasks, project.Icon, project.NotificationTemplates)
 
 	if err != nil {
 		return
@@ -140,5 +145,18 @@ func (d *SqlDb) UpdateProject(project db.Project) error {
 		project.MaxParallelTasks,
 		project.Icon,
 		project.ID)
+	return err
+}
+
+// Separate from UpdateProject so saving general settings never overwrites templates.
+func (d *SqlDb) SetProjectNotificationTemplates(projectID int, settings taskmessage.Settings) error {
+	if err := settings.Validate(); err != nil {
+		return err
+	}
+	content, err := json.Marshal(settings)
+	if err != nil {
+		return err
+	}
+	_, err = d.exec("update project set notification_templates=? where id=?", string(content), projectID)
 	return err
 }
