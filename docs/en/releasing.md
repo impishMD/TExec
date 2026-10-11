@@ -12,8 +12,9 @@ Choose an unused version and tag for every release. Container repositories are
 
 Use `dev` for day-to-day integration:
 
-- Start `fix/<task>` and `feature/<task>` from current `dev`, validate changes and merge them back into `dev`.
-- Accumulate locally validated fixes and features in `dev`. Pushes to `dev` do not run CI or publish images/releases. Full checks run on `release/*`, pull requests or manual workflow dispatch.
+- Start `fix/<task>` and `feature/<task>` from current `dev`, validate changes locally and open a pull request targeting `dev`. Merge through the PR after its checks pass; do not push changes directly into `dev`.
+- PRs into `dev` run **Dev PR checks**: Go vet, frontend lint, documentation and version checks, translations and GitHub Actions validation. They do not run test suites, build containers/packages or install Helm charts. New commits cancel obsolete checks for the same PR.
+- Merging into `dev` does not run CI again or publish images/releases. Full checks remain enabled for `main`, `release/*`, PRs targeting branches other than `dev`, and manual workflow dispatch. Run tests relevant to each change locally before opening its PR.
 - `main` contains released code. Do not bump versions or create tags for each fix; prepare a version for a batch of changes.
 - Create `release/<version>` from `dev` when the batch is ready. Only release fixes enter that branch; new features continue in `dev`.
 - For an urgent production fix, start `hotfix/<task>` from `main`, publish it through a separate `release/*` branch, then merge it back into both `main` and `dev`.
@@ -48,16 +49,17 @@ git switch main
 git pull --ff-only origin main
 git merge --no-ff release/1.2.0 -m "Merge release/1.2.0 into main [skip ci]"
 git push origin main
-git switch dev
-git pull --ff-only origin dev
-git merge --no-ff release/1.2.0 -m "Merge release/1.2.0 back into dev"
-git push origin dev
+gh pr create --base dev --head release/1.2.0 \
+  --title "Merge release/1.2.0 back into dev" \
+  --body "Bring the released version and release fixes back into development."
+gh pr checks release/1.2.0 --watch
+gh pr merge release/1.2.0 --merge
 ```
 
 Replace `1.2.0` with the release version. If the merge requires conflict resolutions
 or other code changes, run CI for the resulting commit instead of adding `[skip ci]`.
-Merging back into `dev` does not start CI automatically. Validate the combined changes
-locally or dispatch CI manually if the merge needs additional checks.
+The PR back into `dev` runs the same quick checks. Validate combined behavior locally
+or dispatch full CI manually if conflict resolutions need additional tests.
 
 ## Credentials
 
