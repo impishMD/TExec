@@ -1,8 +1,11 @@
 package sql
 
 import (
+	"encoding/json"
+
 	"github.com/Masterminds/squirrel"
 	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/pkg/taskmessage"
 	"github.com/impishMD/TExec/pkg/tz"
 )
 
@@ -10,6 +13,24 @@ func (d *SqlDb) CreateProject(project db.Project) (newProject db.Project, err er
 	if err = project.ValidateIcon(); err != nil {
 		return
 	}
+	legacy, parseErr := taskmessage.Parse(project.NotificationTemplates)
+	if parseErr != nil {
+		return newProject, parseErr
+	}
+	if legacy != nil {
+		if project.AlertTemplates == nil {
+			project.AlertTemplates = map[string]taskmessage.Settings{}
+		}
+		if _, exists := project.AlertTemplates["telegram"]; !exists {
+			project.AlertTemplates["telegram"] = *legacy
+		}
+	}
+	for _, settings := range project.AlertTemplates {
+		if err = settings.Validate(); err != nil {
+			return
+		}
+	}
+	project.NotificationTemplates = nil
 	project.Created = tz.Now()
 
 	insertId, err := d.insert(
@@ -23,6 +44,12 @@ func (d *SqlDb) CreateProject(project db.Project) (newProject db.Project, err er
 
 	newProject = project
 	newProject.ID = insertId
+	for channel, settings := range project.AlertTemplates {
+		content, _ := json.Marshal(settings)
+		if err = d.SetAlertChannel(db.AlertChannel{ProjectID: insertId, Channel: channel, Settings: "{}", MessageTemplates: new(string(content))}); err != nil {
+			return
+		}
+	}
 	return
 }
 

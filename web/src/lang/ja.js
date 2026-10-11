@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: '基本設定',
+  alertMessageTemplatesHint: '成功・エラーのテンプレートはこのチャンネルに適用されます。タスクの通知設定が優先されます。',
+  alertMessageResetHint: 'リセットすると、現在のインターフェース言語の標準テンプレートに戻ります。言語を切り替えても保存済みの文章は変わりません。',
+  alertMessageVariablesHint: 'プレーンテキストのみ使用できます。日時はタスクの完了時刻です。値がない場合は — と表示されます。テストには現在のチャンネル設定と選択中のテンプレートを使用します。',
+  alertMessageTemplates: 'メッセージテンプレート',
+  alertMessageSuccess: '成功',
+  alertMessageError: 'エラー',
+  alertMessageReset: 'このテンプレートをリセット',
+  alertMessageOtherInvalid: '保存前にもう一方のタブを確認してください。',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

@@ -8,6 +8,7 @@ import (
 
 	"github.com/impishMD/TExec/db"
 	"github.com/impishMD/TExec/pkg/common_errors"
+	"github.com/impishMD/TExec/pkg/taskmessage"
 	"github.com/impishMD/TExec/util"
 )
 
@@ -15,16 +16,20 @@ const Telegram = "telegram"
 
 // TelegramSettings is the public, secret-free representation of a channel.
 type TelegramSettings struct {
-	Channel               string `json:"channel"`
-	Enabled               bool   `json:"enabled"`
-	ChatID                string `json:"chat_id"`
-	HasToken              bool   `json:"has_token"`
-	GlobalTokenConfigured bool   `json:"global_token_configured"`
+	Templates             *taskmessage.Settings           `json:"templates,omitempty"`
+	TemplateDefaults      map[string]taskmessage.Settings `json:"template_defaults,omitempty"`
+	TemplateVariables     []string                        `json:"template_variables,omitempty"`
+	Channel               string                          `json:"channel"`
+	Enabled               bool                            `json:"enabled"`
+	ChatID                string                          `json:"chat_id"`
+	HasToken              bool                            `json:"has_token"`
+	GlobalTokenConfigured bool                            `json:"global_token_configured"`
 }
 
 type TelegramUpdate struct {
-	Enabled bool   `json:"enabled"`
-	ChatID  string `json:"chat_id"`
+	Templates *taskmessage.Settings `json:"templates,omitempty"`
+	Enabled   bool                  `json:"enabled"`
+	ChatID    string                `json:"chat_id"`
 	// Omitted/null preserves the secret; an empty string explicitly removes it.
 	Token *string `json:"token"`
 }
@@ -46,6 +51,12 @@ func (s Service) GetTelegram(projectID int) (TelegramSettings, error) {
 	}
 	result := TelegramSettings{Channel: Telegram, Enabled: c.Enabled, ChatID: config.ChatID, HasToken: c.Secret != ""}
 	if projectID != 0 {
+		result.Templates, err = taskmessage.Parse(c.MessageTemplates)
+		if err != nil {
+			return result, err
+		}
+		result.TemplateDefaults = taskmessage.AllDefaults()
+		result.TemplateVariables = taskmessage.Variables
 		global, err := s.Store.GetAlertChannel(0, Telegram)
 		if err != nil {
 			return result, err
@@ -62,6 +73,20 @@ func (s Service) UpdateTelegram(projectID int, update TelegramUpdate) (TelegramS
 	c, err := s.Store.GetAlertChannel(projectID, Telegram)
 	if err != nil {
 		return TelegramSettings{}, err
+	}
+	if update.Templates != nil {
+		if projectID == 0 {
+			return TelegramSettings{}, common_errors.NewValidationError("Message templates require a project channel")
+		}
+		if err := update.Templates.Validate(); err != nil {
+			return TelegramSettings{}, err
+		}
+		raw, err := json.Marshal(update.Templates)
+		if err != nil {
+			return TelegramSettings{}, err
+		}
+		text := string(raw)
+		c.MessageTemplates = &text
 	}
 	chatID := strings.TrimSpace(update.ChatID)
 	if projectID == 0 {

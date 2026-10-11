@@ -42,6 +42,39 @@ backups, not project JSON exports.
 Automation can use the administrator-only `GET /api/settings` and `PUT /api/settings`
 endpoints with `{"use_remote_runner": true}` or `{"use_remote_runner": false}`.
 
+## Project message templates
+
+Open **Dashboard → Settings → Alerts → Telegram → Message templates** to set separate
+success and error messages. Each channel has its own templates. Inside Telegram, **General** contains the chat
+and bot settings, and **Message templates** contains the editor. Editing is available
+when the channel is enabled. A task template's success/error notification suppression
+still takes precedence. Workflow node messages and approval requests remain
+independent.
+
+Variables: `project.name`, `template.name`, `task.id`, `task.status`,
+`task.started_by`, `task.url`, `task.message`, `task.version`, `task.error`,
+`date`, `time`, `timezone`. Insert them as `{{ task.id }}` or use the selector.
+Messages are plain text: no HTML or executable expressions. Saved text and the language of `task.status` stay unchanged when another user
+views the form in a different interface language. There is no separate message
+language selector. Date and time refer to task completion in the selected timezone.
+Missing values appear as `—`. The author is the user's name or the project API
+token's name; absent authors appear as `—`.
+
+`task.error` includes a short excerpt of error-marked log lines, never the entire
+log. Known credential patterns are masked; arbitrary secrets cannot be inferred.
+Templates are limited to 3000 Unicode characters, rendered messages to 4000
+(longer results are truncated).
+
+Preview uses sample data. **Test notification** sends the selected example with
+a test prefix using the current form’s chat, bot and template, without saving the
+form. Both tabs share one test button and one Save button. The channel must be enabled and configured. **Reset this template** restores
+only the selected success/error template in the current account/interface language;
+all 15 interface languages are supported. The other template remains unchanged.
+**Save** applies the new text and channel settings together. Existing
+projects retain legacy formatting until templates are first saved. Settings are
+included in project backups and applied on the server, including for remote
+runner tasks.
+
 ## Telegram alerts
 
 Open **Management (gear) → Alerts → Telegram** to save the default bot token
@@ -67,7 +100,8 @@ Channel settings are stored separately in the database, with per-project enablem
 and destinations. Tokens use the server's access-key encryption configuration;
 keep this key with your database backups. `vault check`, `vault rekey`, and rekey
 credential backups include alert tokens. Changes apply without restarting the server.
-Project JSON exports do not include these credentials or channel settings.
+Project JSON exports include channel message templates, but exclude credentials,
+destinations and enablement. Imported channels start disabled.
 
 ## Backups
 

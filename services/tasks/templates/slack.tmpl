@@ -1,4 +1,4 @@
-{
+{{ if .Message }}{"text": {{ json .Message }}, "mrkdwn": false, "unfurl_links": false}{{ else }}{
     "attachments": [
         {
             "title": "Task: {{ .Name }}",
@@ -25,3 +25,4 @@
         }
     ]
 }
+{{ end }}

@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'Allgemein',
+  alertMessageTemplatesHint: 'Vorlagen für Erfolg und Fehler gelten für diesen Kanal. Die Benachrichtigungseinstellungen der Aufgaben haben weiterhin Vorrang.',
+  alertMessageResetHint: 'Zurücksetzen stellt diese Vorlage in der aktuellen Sprache der Oberfläche wieder her. Ein Sprachwechsel ändert gespeicherten Text nicht.',
+  alertMessageVariablesHint: 'Nur Klartext. Datum und Uhrzeit beziehen sich auf den Abschluss der Aufgabe. Fehlende Werte erscheinen als —. Der Test verwendet die aktuellen Kanaleinstellungen und die gewählte Vorlage.',
+  alertMessageTemplates: 'Nachrichtenvorlagen',
+  alertMessageSuccess: 'Erfolg',
+  alertMessageError: 'Fehler',
+  alertMessageReset: 'Diese Vorlage zurücksetzen',
+  alertMessageOtherInvalid: 'Vor dem Speichern die Vorlage auf der anderen Registerkarte prüfen.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

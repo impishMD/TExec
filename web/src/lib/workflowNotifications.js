@@ -19,10 +19,10 @@ export function defaultNotification(locale = 'en', approval = false) {
   };
 }
 
-export function notificationProblem(config) {
+export function notificationProblem(config, variables = notificationVariables) {
   if (!config || !config.message?.trim() || [...config.message].length > 3000) return 'workflowNotificationMessageInvalid';
   const matches = [...config.message.matchAll(/\{\{\s*([a-z_]+(?:\.[a-z_]+)?)\s*\}\}/g)];
-  if (matches.some((m) => !notificationVariables.includes(m[1]))) return 'workflowNotificationVariableInvalid';
+  if (matches.some((m) => !variables.includes(m[1]))) return 'workflowNotificationVariableInvalid';
   const rest = config.message.replace(/\{\{\s*([a-z_]+(?:\.[a-z_]+)?)\s*\}\}/g, '');
   if (rest.includes('{{') || rest.includes('}}')) return 'workflowNotificationVariableInvalid';
   try {

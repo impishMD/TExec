@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'Algemeen',
+  alertMessageTemplatesHint: 'Sjablonen voor succes en fouten gelden voor dit kanaal. De meldingsinstellingen van taken blijven van toepassing.',
+  alertMessageResetHint: 'Herstellen zet dit sjabloon terug naar de huidige interfacetaal. Een taalwisseling verandert opgeslagen tekst niet.',
+  alertMessageVariablesHint: 'Alleen platte tekst. Datum en tijd verwijzen naar de voltooiing van de taak. Ontbrekende waarden verschijnen als —. De test gebruikt de huidige kanaalinstellingen en het geselecteerde sjabloon.',
+  alertMessageTemplates: 'Berichtsjablonen',
+  alertMessageSuccess: 'Succes',
+  alertMessageError: 'Fout',
+  alertMessageReset: 'Dit sjabloon herstellen',
+  alertMessageOtherInvalid: 'Controleer het sjabloon op het andere tabblad voordat u opslaat.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

@@ -239,6 +239,10 @@ func (b *BackupDB) load(projectID int, store db.Store, workflowStore db.Workflow
 	if err != nil {
 		return
 	}
+	b.meta.AlertTemplates, err = store.GetProjectAlertTemplates(projectID)
+	if err != nil {
+		return
+	}
 
 	b.integrationProjAliases, err = store.GetIntegrationAliases(projectID, nil)
 	if err != nil {

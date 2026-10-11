@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'General',
+  alertMessageTemplatesHint: 'Success and error templates apply to this channel. Task notification preferences still apply.',
+  alertMessageResetHint: 'Reset restores this template in your current interface language. Saved text does not change when you switch languages.',
+  alertMessageVariablesHint: 'Plain text only. Date and time refer to task completion. Missing values appear as —. Testing uses the current channel settings and selected template.',
+  alertMessageTemplates: 'Message templates',
+  alertMessageSuccess: 'Success',
+  alertMessageError: 'Error',
+  alertMessageReset: 'Reset this template',
+  alertMessageOtherInvalid: 'Check the template on the other tab before saving.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

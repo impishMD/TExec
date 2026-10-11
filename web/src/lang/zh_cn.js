@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: '基本设置',
+  alertMessageTemplatesHint: '成功和错误模板适用于此渠道。任务通知设置仍然优先。',
+  alertMessageResetHint: '重置会恢复为当前界面语言的默认模板。切换语言不会改变已保存的文本。',
+  alertMessageVariablesHint: '仅使用纯文本。日期和时间为任务完成时间。缺失的值显示为 —。测试使用当前渠道设置和所选模板。',
+  alertMessageTemplates: '消息模板',
+  alertMessageSuccess: '成功',
+  alertMessageError: '错误',
+  alertMessageReset: '重置此模板',
+  alertMessageOtherInvalid: '保存前请检查另一个选项卡中的模板。',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

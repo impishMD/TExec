@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'Основные',
+  alertMessageTemplatesHint: 'Шаблоны успеха и ошибки используются для этого канала. Настройки отключения оповещений в шаблонах задач сохраняют приоритет.',
+  alertMessageResetHint: 'Сброс заменяет этот шаблон стандартным на текущем языке интерфейса. Смена языка не изменяет сохранённый текст.',
+  alertMessageVariablesHint: 'Используется обычный текст. Дата и время — момент завершения задачи. Если значение отсутствует, выводится —. Тестирование использует текущие настройки канала и выбранный шаблон.',
+  alertMessageTemplates: 'Шаблоны сообщений',
+  alertMessageSuccess: 'Успех',
+  alertMessageError: 'Ошибка',
+  alertMessageReset: 'Сбросить этот шаблон',
+  alertMessageOtherInvalid: 'Проверьте шаблон на соседней вкладке перед сохранением.',
+
   workflowNodeKindNotification: 'Оповещение',
   workflowNotificationChannel: 'Канал',
   workflowNotificationChannelHint: 'Используются чат и бот Telegram из настроек оповещений проекта.',

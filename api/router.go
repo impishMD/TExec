@@ -302,6 +302,10 @@ func Route(
 	projectTaskStop.HandleFunc("/tasks/{task_id}/reject", taskController.RejectTask).Methods("POST")
 
 	//
+	projectAlertTemplatesAPI := authenticatedAPI.PathPrefix("/project/{project_id}/alerts/telegram/templates").Subrouter()
+	projectAlertTemplatesAPI.Use(projects.ProjectMiddleware)
+	projectAlertTemplatesAPI.HandleFunc("/preview", projectAlertTemplatePreview).Methods("POST")
+
 	projectAlertTestAPI := authenticatedAPI.Path("/project/{project_id}/alerts/telegram/test").Subrouter()
 	projectAlertTestAPI.Use(projects.ProjectMiddleware)
 	projectAlertTestAPI.Methods("POST").HandlerFunc(alertSettings)

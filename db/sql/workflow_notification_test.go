@@ -50,7 +50,7 @@ func TestMigration_2_20_20PreservesExistingWorkflow(t *testing.T) {
 	target := "2.20.19"
 	store := InitConfigCreateTestStoreAt(&target)
 	t.Cleanup(store.Close)
-	p, err := store.CreateProject(db.Project{Name: "before upgrade"})
+	p, err := createLegacyTestProject(store, db.Project{Name: "before upgrade"})
 	require.NoError(t, err)
 	wf := db.WorkflowTemplate{ProjectID: p.ID, Name: "approval"}
 	require.NoError(t, store.Sql().Insert(&wf))

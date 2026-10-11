@@ -27,6 +27,23 @@ GoReleaser 2.18.2 defines four Linux/macOS archives (amd64/arm64), four Linux DE
 a source archive and `checksums.txt`. Packages are not GPG signed. Binary archives include
 both documentation languages and license notices.
 
+## Merge back into main
+
+After the release branch passes its checks, merge it into `main` so the next feature
+starts from the released code. Keep the application and chart tags on the verified
+release-branch commit. When the merge introduces no code changes, skip duplicate CI:
+
+```sh
+git fetch origin
+git switch main
+git pull --ff-only origin main
+git merge --no-ff release/1.2.0 -m "Merge release/1.2.0 into main [skip ci]"
+git push origin main
+```
+
+Replace `1.2.0` with the release version. If the merge requires conflict resolutions
+or other code changes, run CI for the resulting commit instead of adding `[skip ci]`.
+
 ## Credentials
 
 The GitHub environment **docker_hub** contains **DOCKERHUB_USR** and **DOCKERHUB_TOKEN**.

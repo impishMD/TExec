@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'Podstawowe',
+  alertMessageTemplatesHint: 'Szablony sukcesu i błędu dotyczą tego kanału. Ustawienia powiadomień zadań zachowują priorytet.',
+  alertMessageResetHint: 'Reset przywraca ten szablon w bieżącym języku interfejsu. Zmiana języka nie zmienia zapisanego tekstu.',
+  alertMessageVariablesHint: 'Tylko zwykły tekst. Data i godzina oznaczają zakończenie zadania. Brakujące wartości są wyświetlane jako —. Test używa bieżących ustawień kanału i wybranego szablonu.',
+  alertMessageTemplates: 'Szablony wiadomości',
+  alertMessageSuccess: 'Sukces',
+  alertMessageError: 'Błąd',
+  alertMessageReset: 'Przywróć ten szablon',
+  alertMessageOtherInvalid: 'Przed zapisaniem sprawdź szablon na drugiej karcie.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

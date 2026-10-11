@@ -1,4 +1,14 @@
 export default {
+  alertChannelGeneral: 'Generali',
+  alertMessageTemplatesHint: 'I modelli di successo ed errore si applicano a questo canale. Le preferenze di notifica delle attività mantengono la priorità.',
+  alertMessageResetHint: 'Il ripristino reimposta questo modello nella lingua attuale dell’interfaccia. Cambiare lingua non modifica il testo salvato.',
+  alertMessageVariablesHint: 'Solo testo semplice. Data e ora indicano il completamento dell’attività. I valori mancanti appaiono come —. Il test usa le impostazioni attuali del canale e il modello selezionato.',
+  alertMessageTemplates: 'Modelli di messaggio',
+  alertMessageSuccess: 'Successo',
+  alertMessageError: 'Errore',
+  alertMessageReset: 'Ripristina questo modello',
+  alertMessageOtherInvalid: 'Controlla il modello nell’altra scheda prima di salvare.',
+
   workflowNodeKindNotification: 'Notification',
   workflowNotificationChannel: 'Channel',
   workflowNotificationChannelHint: 'Uses the Telegram chat and bot configured in project notifications.',

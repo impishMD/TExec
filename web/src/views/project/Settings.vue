@@ -201,7 +201,11 @@ import DashboardMenu from '@/components/DashboardMenu.vue';
 
 export default {
   components: {
-    DashboardMenu, YesNoDialog, ProjectForm, TelegramAlertSettings, ProjectTokens,
+    DashboardMenu,
+    YesNoDialog,
+    ProjectForm,
+    TelegramAlertSettings,
+    ProjectTokens,
   },
   props: {
     projectId: Number,

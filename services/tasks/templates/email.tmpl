@@ -1,2 +1,3 @@
-<p>Task {{ .Task.ID }} with template '{{ .Name }}' has failed!</p>
+{{ if .Message }}<pre style="white-space: pre-wrap">{{ .Message }}</pre>{{ else }}<p>Task {{ .Task.ID }} with template '{{ .Name }}' has failed!</p>
 <p>Task Log: <a href="{{ .Task.URL }}">Link</a></p>
+{{ end }}

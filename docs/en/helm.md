@@ -49,7 +49,7 @@ persistence:
 ```sh
 helm repo add texec https://impishmd.github.io/TExec
 helm repo update
-helm upgrade --install texec texec/texec --version 1.1.0 \
+helm upgrade --install texec texec/texec --version 1.2.0 \
   --namespace texec -f texec-values.yaml --wait --timeout 5m
 helm test texec -n texec --logs
 kubectl -n texec port-forward service/texec 3000:3000
@@ -57,9 +57,9 @@ kubectl -n texec port-forward service/texec 3000:3000
 
 Open <http://localhost:3000>. Sign in as `admin` with the password saved above.
 To install directly from this repository, use `./charts/texec` instead of
-`texec/texec --version 1.1.0`. For a custom image, set `image.repository` and `image.tag`.
+`texec/texec --version 1.2.0`. For a custom image, set `image.repository` and `image.tag`.
 
-The default image is `ghcr.io/impishmd/texec:v1.1.0`. You can use Docker Hub by setting
+The default image is `ghcr.io/impishmd/texec:v1.2.0`. You can use Docker Hub by setting
 `image.repository: impishmd/texec`, or pin `image.digest` to a `sha256:…` digest.
 Private registries require `image.pullSecrets` in the release namespace.
 
@@ -224,7 +224,7 @@ Storage-cluster failure or namespace deletion can still destroy it; retention is
 To reinstall against the retained volume:
 
 ```sh
-helm upgrade --install texec texec/texec --version 1.1.0 -n texec \
+helm upgrade --install texec texec/texec --version 1.2.0 -n texec \
   -f texec-values.yaml --set persistence.existingClaim=texec --wait
 ```
 
@@ -251,7 +251,7 @@ spec:
   source:
     repoURL: https://impishmd.github.io/TExec
     chart: texec
-    targetRevision: 1.1.0
+    targetRevision: 1.2.0
     helm:
       releaseName: texec
       valuesObject:

@@ -1,4 +1,4 @@
-{
+{{ if .Message }}{"text": {{ json .Message }}}{{ else }}{
     "text": "execution #{{ .Task.ID }}, status: {{ .Task.Result }}!",
     "attachments": [
         {
@@ -9,3 +9,4 @@
         }
     ]
 }
+{{ end }}

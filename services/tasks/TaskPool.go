@@ -418,7 +418,7 @@ func (p *TaskPool) handleLogs() {
 		case record := <-p.logger:
 			if record.finished != nil {
 				p.flushLogs(&logs)
-				if record.task.ansibleOutput != nil {
+				if record.task != nil && record.task.ansibleOutput != nil {
 					if err := record.task.ansibleOutput.finish(record.time); err != nil {
 						log.WithError(err).WithField("task_id", record.task.Task.ID).Error("Failed to finalize Ansible summary")
 					}
@@ -443,6 +443,11 @@ func (p *TaskPool) handleLogs() {
 // finishTaskLogs is an ordered barrier in the same channel as local and remote
 // output. Persist summaries before publishing the task's end timestamp.
 func (p *TaskPool) finishTaskLogs(task *TaskRunner, at time.Time) {
+	p.syncLogs(task, at)
+}
+
+// A nil task flushes output without finalizing its Ansible summary.
+func (p *TaskPool) syncLogs(task *TaskRunner, at time.Time) {
 	select {
 	case <-p.logsReady:
 	default:
