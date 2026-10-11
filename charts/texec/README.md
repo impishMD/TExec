@@ -14,14 +14,14 @@ Then install:
 ```sh
 helm repo add texec https://impishmd.github.io/TExec
 helm repo update
-helm upgrade --install texec texec/texec --version 1.1.0 \
+helm upgrade --install texec texec/texec --version 1.2.0 \
   --namespace texec --create-namespace \
   --set secrets.existingSecret=texec-credentials --wait --timeout 5m
 kubectl -n texec port-forward service/texec 3000:3000
 ```
 
 Open `http://localhost:3000`; the initial username is `admin`. To use a checkout,
-replace `texec/texec --version 1.1.0` with `./charts/texec`.
+replace `texec/texec --version 1.2.0` with `./charts/texec`.
 Full installation guides: [English](https://github.com/impishMD/TExec/blob/main/docs/en/helm.md) ·
 [Русский](https://github.com/impishMD/TExec/blob/main/docs/ru/helm.md).
 
@@ -78,7 +78,7 @@ Provider options also include `returnViaState` (default `true`), `requireVerifie
 | `database.host/port/name/options` | External database connection |
 | `database.existingSecret/usernameKey/passwordKey` | Database credentials; defaults to the main Secret and `TEXEC_DB_USER` / `TEXEC_DB_PASS` |
 | `oidc.enable/providers` | OIDC providers and Secret mappings |
-| `image.repository/tag/digest` | Server image; default `ghcr.io/impishmd/texec:v1.1.0`; digest takes precedence |
+| `image.repository/tag/digest` | Server image; default `ghcr.io/impishmd/texec:v1.2.0`; digest takes precedence |
 | `image.pullSecrets` | List of registry Secret names |
 | `service` / `ingress` | HTTP Service, Ingress and TLS |
 | `persistence` | PVC size/class, existing claim and retention |

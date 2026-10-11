@@ -49,17 +49,17 @@ persistence:
 ```sh
 helm repo add texec https://impishmd.github.io/TExec
 helm repo update
-helm upgrade --install texec texec/texec --version 1.1.0 \
+helm upgrade --install texec texec/texec --version 1.2.0 \
   --namespace texec -f texec-values.yaml --wait --timeout 5m
 helm test texec -n texec --logs
 kubectl -n texec port-forward service/texec 3000:3000
 ```
 
 Откройте <http://localhost:3000>. Логин — `admin`, пароль — сохранённый выше.
-Для установки из исходников замените `texec/texec --version 1.1.0` на `./charts/texec`.
+Для установки из исходников замените `texec/texec --version 1.2.0` на `./charts/texec`.
 Для собственного образа укажите `image.repository` и `image.tag`.
 
-По умолчанию используется `ghcr.io/impishmd/texec:v1.1.0`. Для Docker Hub задайте
+По умолчанию используется `ghcr.io/impishmd/texec:v1.2.0`. Для Docker Hub задайте
 `image.repository: impishmd/texec`. `image.digest` позволяет закрепить образ по `sha256:…`
 и имеет приоритет над тегом. Для закрытого реестра укажите `image.pullSecrets` в namespace релиза.
 
@@ -226,7 +226,7 @@ kubectl -n texec rollout status deployment/texec
 резервным копиям. Для повторной установки с сохранённым томом:
 
 ```sh
-helm upgrade --install texec texec/texec --version 1.1.0 -n texec \
+helm upgrade --install texec texec/texec --version 1.2.0 -n texec \
   -f texec-values.yaml --set persistence.existingClaim=texec --wait
 ```
 
@@ -253,7 +253,7 @@ spec:
   source:
     repoURL: https://impishmd.github.io/TExec
     chart: texec
-    targetRevision: 1.1.0
+    targetRevision: 1.2.0
     helm:
       releaseName: texec
       valuesObject:

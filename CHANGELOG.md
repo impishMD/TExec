@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.2.0
+
+- Customize project task success and error notifications per channel, starting with Telegram.
+- Preview messages with task variables, completion date/time and a shortened error summary.
+- Reset each template to the current interface language; saved text keeps its language across account changes.
+- Configure Telegram through General and Message templates tabs with one save and test action; disabled channels also disable their template controls.
+- Preserve channel message templates in project backups and imports without exporting notification credentials.
+- Helm chart 1.2.0 deploys TExec v1.2.0.
+
+[English release notes](release-notes/en/v1.2.0.md) · [Русский](release-notes/ru/v1.2.0.md)
+
 ## v1.1.0
 
 - Workflow notification nodes and approval alerts with Telegram delivery, message variables, previews and delivery history.
