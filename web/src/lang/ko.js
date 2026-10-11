@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Sudo 자격 증명 (선택 사항)',
   type: '유형',
   pathToInventoryFile: '인벤토리 파일 경로',
+  repositoryOptional: '저장소 (선택 사항)',
+  inventoryFilesLoadError: '파일 목록을 불러올 수 없습니다. 경로를 직접 입력하거나 다시 시도하세요.',
   enterInventory: '인벤토리 입력...',
   staticInventoryExample: '정적 인벤토리 예:',
   staticYamlInventoryExample: '정적 YAML 인벤토리 예:',

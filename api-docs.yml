@@ -3579,6 +3579,38 @@ paths:
         204:
           description: repository removed
 
+  /project/{project_id}/repositories/{repository_id}/inventory-files:
+    parameters:
+      - $ref: "#/parameters/project_id"
+      - $ref: "#/parameters/repository_id"
+    get:
+      tags:
+        - repository
+      summary: List Ansible inventory file suggestions
+      description: >-
+        Returns up to 30 sorted paths relative to the repository root.
+        Includes YAML, INI and extensionless files; skips hidden directories,
+        group_vars and host_vars. Other paths may still be entered manually.
+        Uses the configured repository branch unless a branch is supplied.
+      parameters:
+        - name: branch
+          in: query
+          type: string
+          required: false
+      responses:
+        200:
+          description: Suggested inventory paths
+          schema:
+            type: array
+            items:
+              type: string
+        400:
+          description: Invalid branch
+        403:
+          description: Access denied
+        404:
+          description: Repository not found
+
   # project inventory
   /project/{project_id}/host_configs:
     parameters:

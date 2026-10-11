@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Dane logowania sudo (opcjonalnie)',
   type: 'Typ',
   pathToInventoryFile: 'Ścieżka do pliku inwentarza',
+  repositoryOptional: 'Repozytorium (opcjonalne)',
+  inventoryFilesLoadError: 'Nie udało się wczytać listy plików. Wpisz ścieżkę ręcznie lub spróbuj ponownie.',
   enterInventory: 'Wprowadź inwentarz...',
   staticInventoryExample: 'Przykład statycznego inwentarza:',
   staticYamlInventoryExample: 'Przykład statycznego inwentarza YAML:',

@@ -251,6 +251,8 @@ export default {
   sudoCredentialsOptional: 'Sudo Credentials (Optional)',
   type: 'Type',
   pathToInventoryFile: 'Path to Inventory file',
+  repositoryOptional: 'Repository (optional)',
+  inventoryFilesLoadError: 'Could not load the file list. Enter a path manually or retry.',
   enterInventory: 'Enter inventory...',
   staticInventoryExample: 'Static inventory example:',
   staticYamlInventoryExample: 'Static YAML inventory example:',

@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Sudo 憑證（選填）',
   type: '類型',
   pathToInventoryFile: '清單檔案路徑',
+  repositoryOptional: '儲存庫（選填）',
+  inventoryFilesLoadError: '無法載入檔案清單。請手動輸入路徑或重試。',
   enterInventory: '輸入清單...',
   staticInventoryExample: '靜態清單範例：',
   staticYamlInventoryExample: '靜態 YAML 清單範例：',

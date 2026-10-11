@@ -88,20 +88,9 @@
       dense
     ></v-select>
 
-    <v-text-field
-      v-model.trim="item.inventory"
-      :label="$t('pathToInventoryFile')"
-      :rules="[v => !!v || $t('path_required')]"
-      required
-      :disabled="formSaving"
-      v-if="item.type === 'file'"
-      outlined
-      dense
-    ></v-text-field>
-
     <v-select
       v-model="item.repository_id"
-      :label="$t('repository') + ' (Optional)'"
+      :label="$t('repositoryOptional')"
       clearable
       :items="repositories"
       item-value="id"
@@ -111,6 +100,46 @@
       outlined
       dense
     ></v-select>
+
+    <v-combobox
+      v-if="inventoryRepositoryId != null"
+      v-model.trim="item.inventory"
+      class="InputWithAppendedButton"
+      :label="$t('pathToInventoryFile')"
+      :items="inventoryFiles"
+      :rules="[v => !!v || $t('path_required')]"
+      :loading="inventoryFilesLoading"
+      :hint="inventoryFilesError ? $t('inventoryFilesLoadError') : ''"
+      persistent-hint
+      required
+      clearable
+      :disabled="formSaving"
+      outlined
+      dense
+      @update:search-input="onInventoryPathSearch"
+    >
+      <template #append-outer>
+        <v-btn
+          depressed
+          :disabled="formSaving"
+          :title="$t(inventoryFilesLoading ? 'cancel' : 'refresh')"
+          :aria-label="$t(inventoryFilesLoading ? 'cancel' : 'refresh')"
+          @click="inventoryFilesLoading ? cancelInventoryLoading() : loadInventoryFiles()"
+        >
+          <v-icon>{{ inventoryFilesLoading ? 'mdi-close' : 'mdi-refresh' }}</v-icon>
+        </v-btn>
+      </template>
+    </v-combobox>
+    <v-text-field
+      v-else-if="item.type === 'file'"
+      v-model.trim="item.inventory"
+      :label="$t('pathToInventoryFile')"
+      :rules="[v => !!v || $t('path_required')]"
+      required
+      :disabled="formSaving"
+      outlined
+      dense
+    />
 
     <div
       style="position: relative"
@@ -214,10 +243,17 @@ export default {
       keys: null,
       repositories: null,
       runnerTags: null,
+      inventoryFiles: [],
+      inventoryFilesLoading: false,
+      inventoryFilesError: false,
+      inventoryFilesAbort: null,
     };
   },
 
   computed: {
+    inventoryRepositoryId() {
+      return this.item?.type === 'file' ? (this.item.repository_id ?? null) : null;
+    },
     loginPasswordKeys() {
       if (this.keys == null) {
         return null;
@@ -227,6 +263,17 @@ export default {
     isLoaded() {
       return this.item != null && this.keys != null;
     },
+  },
+
+  watch: {
+    inventoryRepositoryId() {
+      this.inventoryFiles = [];
+      this.loadInventoryFiles();
+    },
+  },
+
+  beforeDestroy() {
+    this.cancelInventoryLoading();
   },
 
   async created() {
@@ -242,6 +289,42 @@ export default {
   },
 
   methods: {
+    onInventoryPathSearch(value) {
+      // Commit typed paths immediately: the combobox normally waits for blur,
+      // so clicking Create can otherwise submit the previously selected file.
+      if (value != null) this.item.inventory = value.trim();
+    },
+    cancelInventoryLoading() {
+      if (this.inventoryFilesAbort) this.inventoryFilesAbort.abort();
+      this.inventoryFilesAbort = null;
+      this.inventoryFilesLoading = false;
+    },
+    async loadInventoryFiles() {
+      this.cancelInventoryLoading();
+      this.inventoryFilesError = false;
+      if (this.inventoryRepositoryId == null) return;
+
+      const controller = new AbortController();
+      this.inventoryFilesAbort = controller;
+      this.inventoryFilesLoading = true;
+      try {
+        const files = await this.loadProjectEndpoint(
+          `/repositories/${this.inventoryRepositoryId}/inventory-files`,
+          { signal: controller.signal },
+        );
+        if (this.inventoryFilesAbort === controller) this.inventoryFiles = files || [];
+      } catch (err) {
+        if (this.inventoryFilesAbort === controller) {
+          this.inventoryFiles = [];
+          this.inventoryFilesError = true;
+        }
+      } finally {
+        if (this.inventoryFilesAbort === controller) {
+          this.inventoryFilesAbort = null;
+          this.inventoryFilesLoading = false;
+        }
+      }
+    },
     getItemsUrl() {
       return `/api/project/${this.projectId}/inventory`;
     },

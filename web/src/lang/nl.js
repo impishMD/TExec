@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Sudo Referenties (Optioneel)',
   type: 'Type',
   pathToInventoryFile: 'Pad naar Inventarisbestand',
+  repositoryOptional: 'Repository (optioneel)',
+  inventoryFilesLoadError: 'De bestandenlijst kon niet worden geladen. Voer het pad handmatig in of probeer opnieuw.',
   enterInventory: 'Voer inventaris in...',
   staticInventoryExample: 'Statische inventarisvoorbeeld:',
   staticYamlInventoryExample: 'Statisch YAML inventarisvoorbeeld:',

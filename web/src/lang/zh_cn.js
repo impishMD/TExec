@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Sudo 凭据（可选）',
   type: '类型',
   pathToInventoryFile: '库存文件路径',
+  repositoryOptional: '仓库（可选）',
+  inventoryFilesLoadError: '无法加载文件列表。请手动输入路径或重试。',
   enterInventory: '输入库存...',
   staticInventoryExample: '静态库存示例：',
   staticYamlInventoryExample: '静态 YAML 库存示例：',

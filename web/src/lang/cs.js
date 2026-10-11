@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Přihlašovací údaje sudo (volitelné)',
   type: 'Typ',
   pathToInventoryFile: 'Cesta k souboru inventáře',
+  repositoryOptional: 'Repozitář (volitelné)',
+  inventoryFilesLoadError: 'Seznam souborů se nepodařilo načíst. Zadejte cestu ručně nebo to zkuste znovu.',
   enterInventory: 'Zadejte inventář...',
   staticInventoryExample: 'Příklad statického inventáře:',
   staticYamlInventoryExample: 'Příklad statického inventáře YAML:',

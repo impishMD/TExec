@@ -251,6 +251,8 @@ export default {
   sudoCredentialsOptional: 'Учетные данные sudo (необязательно)',
   type: 'Тип',
   pathToInventoryFile: 'Путь к файлу инвентаря',
+  repositoryOptional: 'Репозиторий (необязательно)',
+  inventoryFilesLoadError: 'Не удалось загрузить список файлов. Введите путь вручную или повторите загрузку.',
   enterInventory: 'Введите инвентарь...',
   staticInventoryExample: 'Пример статического инвентаря:',
   staticYamlInventoryExample: 'Пример статического YAML инвентаря:',

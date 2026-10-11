@@ -139,6 +139,21 @@ func (c *RepositoryController) GetRepositoryBranches(w http.ResponseWriter, r *h
 // repositories it checks out the requested branch (defaulting to the
 // repository's configured branch) into a scratch directory before scanning it.
 func (c *RepositoryController) GetRepositoryPlaybooks(w http.ResponseWriter, r *http.Request) {
+	c.getRepositoryFiles(w, r, func(rootDir string) ([]string, error) {
+		// From the template being edited: one repository serves different apps.
+		app := db.TemplateApp(r.URL.Query().Get("app"))
+		return db_lib.FindRepositoryFiles(rootDir, app, r.URL.Query().Get("dir"))
+	})
+}
+
+// GetRepositoryInventoryFiles lists candidates for a file-based Ansible inventory.
+func (c *RepositoryController) GetRepositoryInventoryFiles(w http.ResponseWriter, r *http.Request) {
+	c.getRepositoryFiles(w, r, db_lib.FindInventoryFiles)
+}
+
+func (c *RepositoryController) getRepositoryFiles(
+	w http.ResponseWriter, r *http.Request, listFiles func(string) ([]string, error),
+) {
 	repo := helpers.GetFromContext(r, "repository").(db.Repository)
 
 	var rootDir string
@@ -196,20 +211,14 @@ func (c *RepositoryController) GetRepositoryPlaybooks(w http.ResponseWriter, r *
 		rootDir = git.GetFullPath()
 	}
 
-	// From the template being edited, not the repository: one repository serves
-	// templates of different apps.
-	app := db.TemplateApp(r.URL.Query().Get("app"))
-
-	// What the user has typed so far, when it names a directory: the apps which
-	// run a directory list one level at a time.
-	playbooks, err := db_lib.FindRepositoryFiles(rootDir, app, r.URL.Query().Get("dir"))
+	files, err := listFiles(rootDir)
 
 	if err != nil {
 		helpers.WriteError(w, err)
 		return
 	}
 
-	helpers.WriteJSON(w, http.StatusOK, playbooks)
+	helpers.WriteJSON(w, http.StatusOK, files)
 }
 
 // GetRepositories returns all repositories in a project sorted by type

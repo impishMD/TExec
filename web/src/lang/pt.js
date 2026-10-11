@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Credenciais Sudo (Opcional)',
   type: 'Tipo',
   pathToInventoryFile: 'Caminho para o ficheiro de Inventário',
+  repositoryOptional: 'Repositório (opcional)',
+  inventoryFilesLoadError: 'Não foi possível carregar a lista de ficheiros. Introduza o caminho manualmente ou tente novamente.',
   enterInventory: 'Insira inventário...',
   staticInventoryExample: 'Exemplo de inventário estático:',
   staticYamlInventoryExample: 'Exemplo de inventário YAML estático:',

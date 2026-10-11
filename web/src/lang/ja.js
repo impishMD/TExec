@@ -250,6 +250,8 @@ export default {
   sudoCredentialsOptional: 'Sudo資格情報（オプション）',
   type: 'タイプ',
   pathToInventoryFile: 'インベントリファイルへのパス',
+  repositoryOptional: 'リポジトリ（任意）',
+  inventoryFilesLoadError: 'ファイル一覧を読み込めませんでした。パスを手動で入力するか、再試行してください。',
   enterInventory: 'インベントリを入力...',
   staticInventoryExample: '静的インベントリの例:',
   staticYamlInventoryExample: '静的YAMLインベントリの例:',

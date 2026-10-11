@@ -52,7 +52,25 @@ func FindRepositoryFiles(rootDir string, app db.TemplateApp, dir string) ([]stri
 		return findDirs(rootDir, dir)
 	}
 
-	return findFiles(rootDir, app, filter.Extensions)
+	var skipDirs map[string]bool
+	if app == db.AppAnsible || app == "" {
+		skipDirs = ansibleLayoutDirs
+	}
+	return findFiles(rootDir, filter.Extensions, skipDirs)
+}
+
+// FindInventoryFiles suggests YAML, INI and extensionless inventory paths.
+// Variable files are not inventory sources; other paths can still be entered
+// manually, including dynamic inventory scripts and files beyond the list cap.
+func FindInventoryFiles(rootDir string) ([]string, error) {
+	files, err := findFiles(rootDir, []string{".yml", ".yaml", ".ini", ""}, map[string]bool{
+		"group_vars": true,
+		"host_vars":  true,
+	})
+	if files == nil && err == nil {
+		files = []string{}
+	}
+	return files, err
 }
 
 // findDirs returns the directories directly inside dir, a path relative to
@@ -156,10 +174,8 @@ func insertCapped(result []string, name string) []string {
 	return result
 }
 
-func findFiles(rootDir string, app db.TemplateApp, extensions []string) ([]string, error) {
+func findFiles(rootDir string, extensions []string, skipDirs map[string]bool) ([]string, error) {
 	var result []string
-
-	skipAnsibleDirs := app == db.AppAnsible || app == ""
 
 	err := filepath.WalkDir(rootDir, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -178,7 +194,7 @@ func findFiles(rootDir string, app db.TemplateApp, extensions []string) ([]strin
 			// Dot directories are tooling state - .git, .venv, .tox - and can
 			// hold enough matching files to fill the cap on their own.
 			if strings.HasPrefix(d.Name(), ".") ||
-				(skipAnsibleDirs && ansibleLayoutDirs[d.Name()]) {
+				skipDirs[d.Name()] {
 				return filepath.SkipDir
 			}
 
