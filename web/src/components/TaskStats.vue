@@ -26,6 +26,7 @@
 <script>
 import axios from 'axios';
 import LineChart from '@/components/LineChart.vue';
+import taskStats from '@/lib/taskStats';
 
 export default {
   components: { LineChart },
@@ -117,37 +118,12 @@ export default {
         url += `&user_id=${this.user}`;
       }
 
-      this.stats = (await axios({
+      const rows = (await axios({
         method: 'get',
         url,
         responseType: 'json',
       })).data;
-
-      const firstPoint = this.stats[0];
-
-      if (!firstPoint || firstPoint.date > this.startDate) {
-        this.stats.unshift({
-          date: this.startDate,
-          count_by_status: {
-            success: 0,
-            failed: 0,
-            stopped: 0,
-          },
-        });
-      }
-
-      const lastPoint = this.stats[this.stats.length - 1];
-
-      if (lastPoint.date < new Date().toISOString().split('T')[0]) {
-        this.stats.push({
-          date: new Date().toISOString().split('T')[0],
-          count_by_status: {
-            success: 0,
-            failed: 0,
-            stopped: 0,
-          },
-        });
-      }
+      this.stats = taskStats(rows, this.startDate, new Date().toISOString().slice(0, 10));
     },
   },
 };

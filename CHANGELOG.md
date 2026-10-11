@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fix overlapping task status bars by keeping a single ordered point per day, including zero counts for missing statuses.
+- Include failed and stopped tasks without a start time in statistics, using creation dates consistently for filtering and grouping.
+- Improve chart labels and stopped-task contrast in dark mode; daily tooltips show a date without a misleading time.
+
 ## v1.2.0
 
 - Customize project task success and error notifications per channel, starting with Telegram.

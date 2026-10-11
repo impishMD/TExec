@@ -196,7 +196,9 @@ func (d *SqlDbConnection) prepareQueryWithDialect(query string, dialect gorp.Dia
 
 func (d *SqlDbConnection) PrepareDateQueryParam(paramName string) string {
 	if d.dialect == util.DbDriverSQLite {
-		return "substr(" + paramName + ", 1, 25)"
+		// SQLite's Go driver can include a zone suffix after the time. Its
+		// position depends on fractional seconds, so extract just the date.
+		return "substr(" + paramName + ", 1, 10)"
 	}
 
 	return paramName
@@ -1034,7 +1036,7 @@ func (d *SqlDb) GetTaskStats(projectID int, templateID *int, unit db.TaskStatUni
 		From("task").
 		Where("project_id=?", projectID).
 		GroupBy("date, status").
-		OrderBy("date DESC")
+		OrderBy("date ASC")
 
 	if templateID != nil {
 		q = q.Where("template_id=?", *templateID)
@@ -1045,11 +1047,11 @@ func (d *SqlDb) GetTaskStats(projectID int, templateID *int, unit db.TaskStatUni
 	}
 
 	if filter.Start != nil {
-		q = q.Where("start>=?", *filter.Start)
+		q = q.Where("created>=?", *filter.Start)
 	}
 
 	if filter.End != nil {
-		q = q.Where("end<?", *filter.End)
+		q = q.Where("created<?", *filter.End)
 	}
 
 	query, args, err := q.ToSql()
