@@ -40,6 +40,8 @@ class ReleaseCITest(unittest.TestCase):
         for candidate in [
             run(head_sha='b' * 40), run(event='pull_request'),
             run(event='workflow_dispatch'), run(head_branch='feature'),
+            run(head_branch='release'), run(head_branch='feature/release/1.1.0'),
+            run(head_branch=None),
             run(head_branch='v1.0.7'), run(head_repository={'full_name': 'fork/TExec'}),
             run(head_repository=None),
         ]:
@@ -48,6 +50,18 @@ class ReleaseCITest(unittest.TestCase):
 
     def test_main_and_case_insensitive_repository_are_accepted(self):
         self.assertIsNotNone(ci.latest_branch_run([run(head_branch='main')], REPOSITORY.lower(), SHA))
+
+    def test_release_branch_reuses_its_exact_successful_commit(self):
+        candidate = run(head_branch='release/1.1.0')
+        with patch.object(ci, 'load_runs', return_value=[candidate]), patch.object(ci.time, 'sleep') as sleep:
+            self.assertEqual(ci.wait_for_ci(REPOSITORY, SHA), candidate)
+            sleep.assert_not_called()
+
+    def test_failed_release_branch_is_not_hidden_by_main_success(self):
+        runs = [run(), run(id=101, head_branch='release/1.1.0', conclusion='failure')]
+        with patch.object(ci, 'load_runs', return_value=runs):
+            with self.assertRaisesRegex(RuntimeError, 'failure'):
+                ci.wait_for_ci(REPOSITORY, SHA)
 
     def test_failed_or_skipped_run_blocks_release_even_with_older_success(self):
         for conclusion in ['failure', 'cancelled', 'timed_out', 'skipped', 'neutral']:
