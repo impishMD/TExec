@@ -3,6 +3,7 @@ on:
   push:
     branches: [main, 'release/**']
   pull_request:
+    branches-ignore: [dev]
   workflow_dispatch:
   workflow_call:
     inputs:
