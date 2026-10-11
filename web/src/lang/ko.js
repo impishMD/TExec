@@ -1,12 +1,12 @@
 export default {
+  alertChannelGeneral: '기본 설정',
+  alertMessageTemplatesHint: '성공 및 오류 템플릿은 이 채널에 적용됩니다. 작업 알림 설정이 우선합니다.',
+  alertMessageResetHint: '초기화하면 현재 인터페이스 언어의 기본 템플릿으로 복원됩니다. 언어를 변경해도 저장된 텍스트는 바뀌지 않습니다.',
+  alertMessageVariablesHint: '일반 텍스트만 사용합니다. 날짜와 시간은 작업 완료 시각입니다. 없는 값은 —로 표시됩니다. 테스트는 현재 채널 설정과 선택한 템플릿을 사용합니다.',
   alertMessageTemplates: '메시지 템플릿',
-  alertMessageTemplatesHint: '모든 프로젝트 채널의 공통 메시지입니다. 작업 알림 설정이 우선 적용됩니다.',
-  alertMessageTemplatesUnsaved: '저장하면 적용됩니다. 그전까지 기존 형식을 유지합니다.',
-  alertMessageLanguage: '메시지 언어',
   alertMessageSuccess: '성공',
   alertMessageError: '오류',
   alertMessageReset: '이 템플릿 초기화',
-  alertMessageVariablesHint: '일반 텍스트입니다. 날짜와 시간은 작업 완료 시점입니다. 없는 값은 — 로 표시합니다. 테스트는 저장된 Telegram 채널로 예제를 보냅니다.',
   alertMessageOtherInvalid: '저장 전에 다른 탭의 템플릿을 확인하세요.',
 
   workflowNodeKindNotification: 'Notification',

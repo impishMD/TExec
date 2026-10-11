@@ -1,12 +1,12 @@
 export default {
+  alertChannelGeneral: '基本設定',
+  alertMessageTemplatesHint: '成功和錯誤範本適用於此管道。工作通知設定仍然優先。',
+  alertMessageResetHint: '重設會還原為目前介面語言的預設範本。切換語言不會變更已儲存的文字。',
+  alertMessageVariablesHint: '僅使用純文字。日期和時間為工作完成時間。缺少的值顯示為 —。測試使用目前管道設定和所選範本。',
   alertMessageTemplates: '訊息範本',
-  alertMessageTemplatesHint: '所有專案管道共用訊息。任務通知設定仍然優先。',
-  alertMessageTemplatesUnsaved: '儲存後套用範本。在此之前保持現有格式。',
-  alertMessageLanguage: '訊息語言',
   alertMessageSuccess: '成功',
   alertMessageError: '錯誤',
   alertMessageReset: '重設此範本',
-  alertMessageVariablesHint: '僅支援純文字。日期和時間表示任務完成時間。缺少值顯示為 —。測試會將範例傳送至已儲存的 Telegram 管道。',
   alertMessageOtherInvalid: '儲存前請檢查另一個分頁中的範本。',
 
   workflowNodeKindNotification: 'Notification',

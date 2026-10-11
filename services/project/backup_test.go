@@ -102,7 +102,13 @@ func TestBackupProject(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, restoredProj.Name, "Test 1234")
 	assert.Equal(t, proj.Icon, restoredProj.Icon)
-	assert.Equal(t, proj.NotificationTemplates, restoredProj.NotificationTemplates)
+	assert.Nil(t, restoredProj.NotificationTemplates)
+	originalTemplates, err := store.GetProjectAlertTemplates(proj.ID)
+	assert.NoError(t, err)
+	restoredMessages, err := store.GetProjectAlertTemplates(restoredProj.ID)
+	assert.NoError(t, err)
+	assert.Equal(t, taskmessage.Defaults("ru"), restoredMessages["telegram"])
+	assert.Equal(t, originalTemplates, restoredMessages)
 
 	restoredTemplates, err := store.GetTemplates(restoredProj.ID, db.TemplateFilter{}, db.RetrieveQueryParams{})
 	assert.NoError(t, err)
@@ -177,6 +183,7 @@ func TestBackup_BackupSecretStorage(t *testing.T) {
   ],
   "meta": {
     "alert": false,
+    "alert_templates": {},
     "max_parallel_tasks": 0,
     "name": "Test 1234",
     "type": ""
@@ -257,6 +264,7 @@ func TestBackup_RestoreScheduleWithoutTaskParams(t *testing.T) {
   ],
   "meta": {
     "alert": false,
+    "alert_templates": {},
     "max_parallel_tasks": 0,
     "name": "Restored Project",
     "type": ""

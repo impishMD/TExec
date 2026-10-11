@@ -2,88 +2,106 @@ import { expect } from 'chai';
 import { mount } from '@vue/test-utils';
 import axios from 'axios';
 import Vuetify from 'vuetify';
+import VueI18n from 'vue-i18n';
 import ProjectAlertTemplates from '@/components/ProjectAlertTemplates.vue';
+import defaultMessages from '@/lib/taskNotifications';
 
 const tick = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 const settings = {
-  success: 'OK {{task.id}}', error: 'Error {{task.error}}', locale: 'en', timezone: 'UTC',
+  success: 'Мой успех {{task.id}}',
+  error: 'Моя ошибка {{task.error}}',
+  success_locale: 'ru',
+  error_locale: 'ru',
+  timezone: 'UTC',
 };
-const response = () => ({
-  settings: { ...settings },
-  configured: true,
-  variables: ['task.id', 'task.error', 'timezone'],
-  defaults: { en: settings, ru: { ...settings, success: 'Успешно', error: 'Ошибка' } },
-});
+const defaults = {
+  ru: { ...settings, success: 'Успешно', error: 'Ошибка' },
+  ja: {
+    ...settings, success: '成功', error: 'エラー', success_locale: 'ja', error_locale: 'ja',
+  },
+  zh_cn: {
+    ...settings, success: '成功', error: '错误', success_locale: 'zh_cn', error_locale: 'zh_cn',
+  },
+};
 
 describe('Project message templates', () => {
   let wrapper;
-  let original;
+  let originalPost;
   let sent;
   beforeEach(() => {
-    original = { get: axios.get, put: axios.put, post: axios.post };
+    originalPost = axios.post;
     sent = [];
-    axios.get = async () => ({ data: response() });
-    axios.post = async (url, data) => { sent.push({ url, data }); return { data: { text: '<b>example</b>' } }; };
-    axios.put = async (url, data) => ({ data: { ...data.settings } });
+    axios.post = async (url, data) => {
+      sent.push({ url, data }); return { data: { text: '<b>example</b>' } };
+    };
   });
-  afterEach(() => {
-    wrapper?.destroy();
-    Object.assign(axios, original);
-  });
-  async function render() {
+  afterEach(() => { wrapper?.destroy(); axios.post = originalPost; });
+  async function render(extra = {}) {
     wrapper = mount(ProjectAlertTemplates, {
-      propsData: { projectId: 1 }, vuetify: new Vuetify(), mocks: { $t: (key) => key },
+      propsData: {
+        projectId: 1,
+        value: { ...settings },
+        defaults,
+        variables: ['task.id', 'task.error', 'timezone'],
+        ...extra,
+      },
+      vuetify: new Vuetify(),
+      i18n: new VueI18n({ locale: 'ja' }),
+      mocks: { $t: (key) => key },
     });
     await tick();
   }
 
-  it('keeps previews plain, tests only on request, and saves both templates together', async () => {
+  it('keeps Russian text in a Japanese interface and resets only the selected text', async () => {
     await render();
-    expect(wrapper.vm.dirty).to.equal(false);
+    expect(wrapper.vm.value).to.deep.equal(settings);
+    expect(wrapper.emitted('input')).to.equal(undefined);
+    wrapper.vm.resetTemplate();
+    const changed = wrapper.emitted('input')[0][0];
+    expect(changed.success).to.equal('成功');
+    expect(changed.success_locale).to.equal('ja');
+    expect(changed.error).to.equal(settings.error);
+    expect(changed.error_locale).to.equal('ru');
+    expect(changed.timezone).to.equal('UTC');
+    expect(defaultMessages(defaults, 'zh-CN')).to.deep.equal(defaults.zh_cn);
+    expect(defaultMessages(defaults, 'ja-JP')).to.deep.equal(defaults.ja);
+  });
+
+  it('disables editing, reset and previews while the channel is off', async () => {
+    await render({ disabled: true });
+    expect(wrapper.find('textarea').element.disabled).to.equal(true);
+    expect(wrapper.find('[data-testid="message-reset"]').attributes('disabled')).to.equal('disabled');
+    wrapper.vm.resetTemplate();
+    wrapper.vm.patch({ success: 'changed' });
+    expect(wrapper.emitted('input')).to.equal(undefined);
+    expect(wrapper.vm.previewLoading).to.equal(false);
+    expect(sent).to.have.length(0);
+    await wrapper.setProps({ disabled: false });
+    expect(wrapper.find('textarea').element.disabled).to.equal(false);
+    expect(wrapper.vm.previewLoading).to.equal(true);
+  });
+
+  it('previews plain text with no separate save or send controls', async () => {
+    await render();
     await wrapper.vm.loadPreview(wrapper.vm.sequence);
     await tick();
     expect(wrapper.find('[data-testid="message-preview"]').text()).to.equal('<b>example</b>');
     expect(wrapper.find('[data-testid="message-preview"] b').exists()).to.equal(false);
-    expect(sent.some((call) => call.url.endsWith('/test'))).to.equal(false);
-    await wrapper.setData({ settings: { ...settings, success: 'New {{task.id}}' } });
-    await wrapper.vm.testNotification();
-    expect(sent.filter((call) => call.url.endsWith('/test'))).to.have.length(1);
-    expect(wrapper.vm.dirty).to.equal(true, 'test does not save');
-    let saved;
-    axios.put = async (url, data) => {
-      saved = data.settings;
-      return { data: { ...data.settings } };
-    };
-    await wrapper.vm.save();
-    expect(saved.error).to.equal(settings.error);
-    expect(saved.success).to.equal('New {{task.id}}');
-    expect(wrapper.vm.dirty).to.equal(false);
-  });
-
-  it('validates both tabs, resets only the selected template, and cancels edits', async () => {
-    await render();
-    await wrapper.setData({ settings: { ...settings, error: '{{secret}}' } });
-    expect(wrapper.vm.invalid).to.equal(true);
+    expect(sent[0].url).to.equal('/api/project/1/alerts/telegram/templates/preview');
+    expect(sent[0].data.templates).to.deep.equal(settings);
+    expect(wrapper.find('[data-testid="message-test"]').exists()).to.equal(false);
+    expect(wrapper.find('[data-testid="message-save"]').exists()).to.equal(false);
+    await wrapper.setProps({ value: { ...settings, error: '{{secret}}' } });
     expect(wrapper.vm.otherProblem).to.equal('workflowNotificationVariableInvalid');
-    expect(wrapper.find('[data-testid="message-save"]').attributes('disabled')).to.equal('disabled');
-    await wrapper.setData({ status: 'error' });
-    wrapper.vm.resetTemplate();
-    await tick();
-    expect(wrapper.vm.invalid).to.equal(false);
-    expect(wrapper.vm.settings.success).to.equal(settings.success);
-    await wrapper.setData({ settings: { ...settings, success: 'Edited', timezone: 'not/a/zone' } });
-    expect(wrapper.vm.problem).to.equal('workflowNotificationTimezoneInvalid');
-    wrapper.vm.cancel();
-    await tick();
-    expect(wrapper.vm.settings).to.deep.equal(settings);
+    expect(wrapper.vm.previewLoading).to.equal(false);
   });
 
-  it('does not let late previews replace a newer tab or project', async () => {
+  it('ignores late previews after switching tabs or disabling the channel', async () => {
     await render();
     const pending = [];
     axios.post = () => new Promise((resolve) => { pending.push(resolve); });
     const first = wrapper.vm.loadPreview(wrapper.vm.sequence);
-    await wrapper.setData({ status: 'error' });
+    await wrapper.setProps({ status: 'error' });
     const second = wrapper.vm.loadPreview(wrapper.vm.sequence);
     pending[1]({ data: { text: 'new' } });
     await second;
@@ -91,22 +109,9 @@ describe('Project message templates', () => {
     await first;
     expect(wrapper.vm.preview).to.equal('new');
     const third = wrapper.vm.loadPreview(wrapper.vm.sequence);
-    await wrapper.setProps({ projectId: 2 });
-    await tick();
-    pending[2]({ data: { text: 'wrong project' } });
+    await wrapper.setProps({ disabled: true });
+    pending[2]({ data: { text: 'disabled' } });
     await third;
-    expect(wrapper.vm.preview).not.to.equal('wrong project');
-  });
-
-  it('shows load failures and permits saving initial defaults', async () => {
-    axios.get = async () => { throw new Error('offline'); };
-    await render();
-    expect(wrapper.vm.settings).to.equal(null);
-    expect(wrapper.vm.error).not.to.equal('');
-    axios.get = async () => ({ data: { ...response(), configured: false } });
-    await wrapper.vm.load();
-    await tick();
-    expect(wrapper.vm.dirty).to.equal(true);
-    expect(wrapper.find('[data-testid="message-save"]').attributes('disabled')).to.equal(undefined);
+    expect(wrapper.vm.preview).to.equal('');
   });
 });

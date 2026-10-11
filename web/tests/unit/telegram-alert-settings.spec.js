@@ -178,4 +178,62 @@ describe('Telegram alert settings', () => {
     expect(wrapper.vm.settings).to.deep.equal(defaults);
     expect(wrapper.vm.error).to.equal('');
   });
+  it('shares one test and save for credentials and both templates', async () => {
+    const templates = {
+      success: 'OK {{task.id}}',
+      error: 'Failed {{task.error}}',
+      success_locale: 'en',
+      error_locale: 'en',
+      timezone: 'UTC',
+    };
+    await render({
+      enabled: true,
+      chat_id: '@original',
+      has_token: true,
+      templates,
+      template_variables: ['task.id', 'task.error'],
+      template_defaults: { en: templates },
+    });
+    expect(wrapper.findAll('[data-testid="alerts-test"]')).to.have.length(1);
+    await wrapper.setData({
+      channelTab: 'templates',
+      chatId: '@draft',
+      token: '123:draft',
+      templates: { ...templates, error: 'Draft {{task.error}}' },
+      templateStatus: 'error',
+    });
+    await wrapper.vm.testNotification();
+    expect(tested.data).to.include({ chat_id: '@draft', token: '123:draft', status: 'error' });
+    expect(tested.data.templates.error).to.equal('Draft {{task.error}}');
+    expect(saved).to.equal(null);
+    await wrapper.vm.save();
+    expect(saved.data.templates.error).to.equal('Draft {{task.error}}');
+    expect(saved.data.templates.success).to.equal(templates.success);
+    expect(wrapper.vm.dirty).to.equal(false);
+    await wrapper.setData({ templates: { ...templates, error: '{{secret}}' } });
+    expect(wrapper.vm.templatesInvalid).to.equal(true);
+    wrapper.vm.reset();
+    expect(wrapper.vm.templates.error).to.equal('Draft {{task.error}}');
+    await wrapper.setData({ enabled: false });
+    expect(wrapper.find('[data-testid="alerts-test"]').attributes('disabled')).to.equal('disabled');
+    expect(wrapper.find('textarea').element.disabled).to.equal(true);
+  });
+  it('saves valid template edits together with disabling the channel', async () => {
+    const templates = {
+      success: 'Saved',
+      error: 'Error',
+      timezone: 'UTC',
+      success_locale: 'en',
+      error_locale: 'en',
+    };
+    await render({ enabled: true, chat_id: '@original', templates });
+    await wrapper.setData({ enabled: false, templates: { ...templates, success: 'Changed' } });
+    await wrapper.vm.save();
+    expect(saved.data.enabled).to.equal(false);
+    expect(saved.data.templates.success).to.equal('Changed');
+    await wrapper.setData({ templates: { ...templates, success: '{{secret}}' } });
+    await wrapper.vm.save();
+    expect(saved.data.enabled).to.equal(false);
+    expect(saved.data).not.to.have.property('templates');
+  });
 });

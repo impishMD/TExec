@@ -1,12 +1,12 @@
 export default {
+  alertChannelGeneral: 'Général',
+  alertMessageTemplatesHint: 'Les modèles de réussite et d’erreur s’appliquent à ce canal. Les préférences de notification des tâches restent prioritaires.',
+  alertMessageResetHint: 'La réinitialisation rétablit ce modèle dans la langue actuelle de l’interface. Changer de langue ne modifie pas le texte enregistré.',
+  alertMessageVariablesHint: 'Texte brut uniquement. La date et l’heure indiquent la fin de la tâche. Les valeurs absentes sont affichées par —. Le test utilise les paramètres actuels du canal et le modèle sélectionné.',
   alertMessageTemplates: 'Modèles de messages',
-  alertMessageTemplatesHint: 'Messages communs à tous les canaux du projet. Les préférences des tâches restent prioritaires.',
-  alertMessageTemplatesUnsaved: 'Enregistrez pour appliquer les modèles. En attendant, le format actuel est conservé.',
-  alertMessageLanguage: 'Langue des messages',
   alertMessageSuccess: 'Réussite',
   alertMessageError: 'Erreur',
   alertMessageReset: 'Réinitialiser ce modèle',
-  alertMessageVariablesHint: 'Texte brut. Date et heure : fin de la tâche. Valeurs absentes : —. Le test envoie l’exemple au canal Telegram enregistré.',
   alertMessageOtherInvalid: 'Vérifiez le modèle de l’autre onglet avant d’enregistrer.',
 
   workflowNodeKindNotification: 'Notification',

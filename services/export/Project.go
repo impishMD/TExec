@@ -13,6 +13,12 @@ func (e *ProjectExporter) load(store db.Store, exporter DataExporter, progress P
 		return err
 	}
 
+	for i := range projects {
+		projects[i].AlertTemplates, err = store.GetProjectAlertTemplates(projects[i].ID)
+		if err != nil {
+			return err
+		}
+	}
 	return e.appendValues(projects, GlobalScope)
 }
 

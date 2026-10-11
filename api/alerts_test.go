@@ -57,7 +57,7 @@ func TestAlertSettingsPermissionsAndWriteOnlySecrets(t *testing.T) {
 		var body map[string]string
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		require.Equal(t, "@preview", body["chat_id"])
-		require.Contains(t, body["text"], "тестовое оповещение")
+		require.Contains(t, strings.ToLower(body["text"]), "тестовое оповещение")
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true}`))}, nil
 	})
 	w = request(true, 0, 0, "POST", `{"chat_id":"@preview","locale":"ru"}`)
@@ -77,7 +77,7 @@ func TestAlertSettingsPermissionsAndWriteOnlySecrets(t *testing.T) {
 		require.NotContains(t, body, "secret")
 		before, err := store.GetAlertChannel(project.ID, "telegram")
 		require.NoError(t, err)
-		w = request(admin, db.CanUpdateProject, project.ID, "POST", `{"chat_id":"@preview","token":"","locale":"ru"}`)
+		w = request(admin, db.CanUpdateProject, project.ID, "POST", `{"enabled":true,"chat_id":"@preview","token":"","locale":"ru"}`)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.JSONEq(t, `{"sent":true}`, w.Body.String())
 		after, err := store.GetAlertChannel(project.ID, "telegram")

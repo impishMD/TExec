@@ -4,8 +4,7 @@
     <v-alert v-if="error" type="error" text class="mt-4">{{ error }}</v-alert>
     <v-btn v-if="!settings && !loading" text @click="load">{{ $t('alertsRetry') }}</v-btn>
     <v-form v-if="settings" ref="form" @submit.prevent="save" :disabled="busy">
-      <div class="telegram-alert-fields px-6 pt-5 pb-2">
-        <template v-if="projectId">
+      <div v-if="projectId" class="px-6 pt-5">
           <v-switch
             v-model="enabled"
             :label="$t('alertsEnableTelegram')"
@@ -15,6 +14,14 @@
             hide-details
             inset
           />
+        <v-tabs v-model="channelTab" class="telegram-alert-tabs"
+          :show-arrows="!$vuetify.breakpoint.xsOnly" data-testid="channel-settings-tabs">
+          <v-tab href="#general">{{ $t('alertChannelGeneral') }}</v-tab>
+          <v-tab href="#templates">{{ $t('alertMessageTemplates') }}</v-tab>
+        </v-tabs>
+      </div>
+      <div v-show="channelTab === 'general'" class="telegram-alert-fields px-6 pt-5 pb-2">
+        <template v-if="projectId">
           <p class="text-body-2 text--secondary">{{ $t('alertsProjectHint') }}</p>
           <v-text-field
             v-model="chatId"
@@ -81,6 +88,11 @@
         <v-text-field v-if="!projectId" v-model="testChatId" :label="$t('alertsTestChat')"
           :disabled="busy" outlined dense class="mt-5" data-testid="alerts-test-chat" />
       </div>
+      <div v-if="projectId && templates" v-show="channelTab === 'templates'" class="px-6 pt-5 pb-2">
+        <ProjectAlertTemplates v-model="templates" :project-id="projectId"
+          :status.sync="templateStatus" :defaults="settings.template_defaults || {}"
+          :variables="settings.template_variables || []" :disabled="!enabled || busy" />
+      </div>
       <div class="px-6" v-if="testResult">
         <v-alert :type="testResult.ok ? 'success' : 'error'" text class="mb-0"
           data-testid="alerts-test-result">{{ testResult.text }}</v-alert>
@@ -88,7 +100,7 @@
       <v-divider class="mt-4" />
       <v-card-actions class="px-6 py-4 telegram-alert-actions">
         <v-btn outlined color="primary" type="button" @click="testNotification"
-          :loading="testing" :disabled="saving || loading || (!!projectId && !enabled)"
+          :loading="testing" :disabled="busy || (!!projectId && !enabled) || templatesInvalid"
           class="telegram-alert-test"
           data-testid="alerts-test">
           <v-icon left small>mdi-send-check-outline</v-icon>{{ $t('alertsTest') }}
@@ -101,7 +113,7 @@
           <v-btn
             color="primary"
             :loading="saving"
-            :disabled="!dirty || loading || testing"
+            :disabled="!dirty || busy || (enabled && templatesInvalid)"
             type="submit"
             data-testid="alerts-save"
           >{{ $t('save') }}</v-btn>
@@ -114,9 +126,13 @@
 <script>
 import axios from 'axios';
 import EventBus from '@/event-bus';
+import ProjectAlertTemplates from '@/components/ProjectAlertTemplates.vue';
+import defaultMessages from '@/lib/taskNotifications';
+import { notificationProblem } from '@/lib/workflowNotifications';
 import { getErrorMessage } from '@/lib/error';
 
 export default {
+  components: { ProjectAlertTemplates },
   props: { projectId: { type: Number, default: 0 } },
   data() {
     return {
@@ -132,23 +148,34 @@ export default {
       useGlobalToken: true,
       clearToken: false,
       error: '',
+      templates: null,
+      originalTemplates: null,
+      templateStatus: 'success',
+      channelTab: 'general',
+      generation: 0,
     };
   },
   computed: {
-    busy() { return this.saving || this.testing; },
+    busy() { return this.loading || this.saving || this.testing; },
     testInput() {
       return JSON.stringify([this.chatId, this.testChatId, this.token, this.useGlobalToken,
-        this.enabled, this.clearToken]);
+        this.enabled, this.clearToken, this.templates, this.templateStatus]);
     },
     url() {
       return this.projectId
         ? `/api/project/${this.projectId}/alerts/telegram` : '/api/alerts/telegram';
     },
+    templatesInvalid() {
+      if (!this.projectId || !this.templates) return false;
+      return ['success', 'error'].some((status) => notificationProblem({ ...this.templates, message: this.templates[status] }, this.settings.template_variables || []));
+    },
     dirty() {
       return this.settings && (this.token.trim() !== '' || this.clearToken
         || (this.projectId && (this.enabled !== this.settings.enabled
           || this.chatId !== this.settings.chat_id
-          || this.useGlobalToken === this.settings.has_token)));
+          || this.useGlobalToken === this.settings.has_token
+          || (this.enabled && this.templates && !this.settings.templates)
+          || JSON.stringify(this.templates) !== JSON.stringify(this.originalTemplates))));
     },
   },
   watch: {
@@ -170,18 +197,30 @@ export default {
       this.useGlobalToken = !settings.has_token;
       this.token = '';
       this.clearToken = false;
+      const defaults = defaultMessages(settings.template_defaults || {}, this.$i18n?.locale);
+      this.templates = defaults ? {
+        ...defaults,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
+      } : null;
+      if (settings.templates) this.templates = { ...settings.templates };
+      this.originalTemplates = this.templates ? { ...this.templates } : null;
     },
     async load() {
+      this.generation += 1;
+      const generation = this.generation;
+      this.testResult = null;
+      this.channelTab = 'general';
       this.loading = true;
       this.error = '';
       this.settings = null;
       this.token = '';
       try {
-        this.apply((await axios.get(this.url)).data);
+        const { data } = await axios.get(this.url);
+        if (generation === this.generation) this.apply(data);
       } catch (err) {
-        this.error = getErrorMessage(err);
+        if (generation === this.generation) this.error = getErrorMessage(err);
       } finally {
-        this.loading = false;
+        if (generation === this.generation) this.loading = false;
       }
     },
     requestData() {
@@ -189,10 +228,14 @@ export default {
       if (this.projectId && this.useGlobalToken) data.token = '';
       else if (this.token.trim()) data.token = this.token.trim();
       else if (this.clearToken) data.token = '';
+      if (this.projectId && this.templates && !this.templatesInvalid) {
+        data.templates = this.templates;
+      }
       return data;
     },
     async testNotification() {
-      if (this.busy || !this.$refs.form.validate()) return;
+      if (this.busy || this.templatesInvalid || (this.projectId && !this.enabled)) return;
+      if (!this.$refs.form.validate()) { this.channelTab = 'general'; return; }
       const data = this.requestData();
       data.chat_id = (this.projectId ? this.chatId : this.testChatId).trim();
       if (!data.chat_id) {
@@ -200,6 +243,7 @@ export default {
         return;
       }
       data.locale = this.$i18n?.locale || 'en';
+      if (this.projectId) data.status = this.templateStatus;
       const url = this.url;
       this.testing = true;
       this.testResult = null;
@@ -213,16 +257,20 @@ export default {
       }
     },
     async save() {
-      if (!this.$refs.form.validate()) return;
+      if (this.busy || !this.dirty || (this.enabled && this.templatesInvalid)) return;
+      if (!this.$refs.form.validate()) { this.channelTab = 'general'; return; }
+      const generation = this.generation;
       this.error = '';
       this.saving = true;
       const data = this.requestData();
       try {
-        this.apply((await axios.put(this.url, data)).data);
+        const response = await axios.put(this.url, data);
+        if (generation !== this.generation) return;
+        this.apply(response.data);
         EventBus.$emit('i-snackbar', { color: 'success', text: this.$t('alertsSaved') });
         this.$emit('saved');
       } catch (err) {
-        this.error = getErrorMessage(err);
+        if (generation === this.generation) this.error = getErrorMessage(err);
       } finally {
         this.saving = false;
       }
@@ -232,6 +280,25 @@ export default {
 </script>
 
 <style lang="scss">
+@media (max-width: 600px) {
+  .telegram-alert-tabs {
+    .v-tabs-bar { height: auto !important; }
+    .v-tabs-bar__content { width: 100%; gap: 8px; }
+    .v-tab {
+      flex: 1 1 0;
+      height: auto !important;
+      min-height: 56px !important;
+      min-width: 0 !important;
+      max-width: none !important;
+      margin: 0 !important;
+      padding: 8px !important;
+      white-space: normal;
+      text-align: center;
+      line-height: 1.4;
+    }
+  }
+}
+
 .telegram-alert-actions {
   flex-wrap: wrap;
   gap: 12px;

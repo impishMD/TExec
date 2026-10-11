@@ -154,18 +154,17 @@ func (t *TaskRunner) SetStatus(status task_logger.TaskStatus) {
 		localJob.SetStatus(status)
 	}
 
-	message := t.projectAlertMessage()
 	if status == task_logger.TaskFailStatus {
-		t.sendMailAlert(message)
+		t.sendMailAlert(t.projectAlertMessage("email"))
 	}
 
 	if status.IsNotifiable() {
-		t.sendTelegramAlert(message)
-		t.sendSlackAlert(message)
-		t.sendRocketChatAlert(message)
-		t.sendMicrosoftTeamsAlert(message)
-		t.sendDingTalkAlert(message)
-		t.sendGotifyAlert(message)
+		t.sendTelegramAlert(t.projectAlertMessage("telegram"))
+		t.sendSlackAlert(t.projectAlertMessage("slack"))
+		t.sendRocketChatAlert(t.projectAlertMessage("rocketchat"))
+		t.sendMicrosoftTeamsAlert(t.projectAlertMessage("microsoft_teams"))
+		t.sendDingTalkAlert(t.projectAlertMessage("dingtalk"))
+		t.sendGotifyAlert(t.projectAlertMessage("gotify"))
 	}
 
 	for _, l := range t.statusListeners {

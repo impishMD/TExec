@@ -138,6 +138,17 @@ definitions:
       global_token_configured:
         type: boolean
         description: Whether a project can use a saved global token.
+      templates:
+        $ref: '#/definitions/ChannelAlertTemplates'
+      template_defaults:
+        type: object
+        description: Project only. Default texts for all 15 supported interface languages. Saved templates are omitted until first configured.
+        additionalProperties:
+          $ref: '#/definitions/ChannelAlertTemplates'
+      template_variables:
+        type: array
+        items:
+          type: string
   TelegramAlertUpdate:
     type: object
     properties:
@@ -151,10 +162,13 @@ definitions:
       token:
         type: string
         description: Write-only bot token. Omit or use null to preserve, use an empty string to remove. Removing a project token falls back to the global token.
-  ProjectAlertTemplates:
+      templates:
+        $ref: '#/definitions/ChannelAlertTemplates'
+        description: Project only. Saved atomically with the channel settings. Omit to preserve existing templates.
+  ChannelAlertTemplates:
     type: object
-    required: [success, error, timezone, locale]
-    description: Plain-text templates shared across project channels. Named substitutions only; no expressions or HTML. Unknown variables and invalid timezones are rejected. Empty/missing values render as an em dash. Rendered messages are limited to 4000 Unicode characters.
+    required: [success, error, timezone, success_locale, error_locale]
+    description: Plain-text templates belonging to a single project notification channel. Named substitutions only; no expressions or HTML. Unknown variables and invalid timezones are rejected. Empty/missing values render as an em dash. Rendered messages are limited to 4000 Unicode characters.
     properties:
       success:
         type: string
@@ -168,16 +182,23 @@ definitions:
         type: string
         description: IANA timezone for task completion date/time; empty selects UTC.
         example: Europe/Moscow
-      locale:
+      success_locale:
         type: string
-        enum: [en, ru]
-        description: Language of task.status. Custom template text is never translated.
+        enum: [en, ru, cs, de, es, fr, it, ja, ko, nl, pl, pt, pt_br, zh_cn, zh_tw]
+        description: Internal language snapshot for the saved success text and task.status. Set from the interface locale on creation/reset; preserve when editing or viewing in another language.
+      error_locale:
+        type: string
+        enum: [en, ru, cs, de, es, fr, it, ja, ko, nl, pl, pt, pt_br, zh_cn, zh_tw]
+        description: Independent language snapshot for the error text. Resetting success does not change it.
   ProjectAlertTemplateRequest:
     type: object
-    required: [settings]
+    required: [templates, status]
     properties:
-      settings:
-        $ref: '#/definitions/ProjectAlertTemplates'
+      templates:
+        $ref: '#/definitions/ChannelAlertTemplates'
+      locale:
+        type: string
+        description: Current interface locale for sample data only; does not change saved text or task.status.
       status:
         type: string
         enum: [success, error]
@@ -194,8 +215,19 @@ definitions:
         description: Bot token from the current form. Omit or use null for the saved token. An empty string selects the global token for a project. Never saved by this endpoint.
       locale:
         type: string
-        description: Test message language; Russian for ru locales, English otherwise.
+        description: Current interface locale for project sample data and test prefix; does not translate saved templates. Global credential tests support Russian and English.
         default: en
+      enabled:
+        type: boolean
+        description: Must be true for project tests; ignored for global tests.
+      templates:
+        $ref: '#/definitions/ChannelAlertTemplates'
+        description: Unsaved project templates. If omitted, uses saved channel templates or defaults in the current interface locale.
+      status:
+        type: string
+        enum: [success, error]
+        default: success
+        description: Project test template to render with sample data.
   App:
     type: object
 
@@ -4611,7 +4643,7 @@ paths:
     put:
       tags: [alerts]
       summary: Configure Telegram for a project
-      description: Requires permission to update this project. Enabling requires a chat and either a project or global token. Other channels are unaffected.
+      description: Requires permission to update this project. Enabling requires a chat and either a project or global token. Templates and channel settings are saved atomically. Omitted templates remain unchanged. Other channels are unaffected. Maximum request size is 32 KiB.
       parameters:
         - in: body
           name: settings
@@ -4658,7 +4690,7 @@ paths:
     post:
       tags: [alerts]
       summary: Test a project Telegram notification
-      description: Sends one test message using submitted values and saved credentials. Does not update settings or run a task. Requires the same permissions as changing these settings.
+      description: Sends the selected success/error sample using current submitted templates, chat and credentials. Requires enabled=true. Maximum request size is 32 KiB. Does not update settings or run a task. Requires the same permissions as changing these settings.
       parameters:
         - in: body
           name: settings
@@ -4678,65 +4710,13 @@ paths:
         403:
           description: Permission to update the project required
 
-  /project/{project_id}/alerts/templates:
-    parameters:
-      - $ref: '#/parameters/project_id'
-    get:
-      tags: [alerts]
-      summary: Get common project notification templates and defaults
-      description: Requires project update permission, including reads. An unconfigured project retains legacy notification formatting until the first PUT. Response includes settings, configured, variables and defaults (en/ru).
-      parameters:
-        - name: locale
-          in: query
-          type: string
-          enum: [en, ru]
-          description: Initial default language when no settings have been saved.
-      responses:
-        200:
-          description: Settings, defaults and allowed variable names
-          schema:
-            type: object
-            properties:
-              settings:
-                $ref: '#/definitions/ProjectAlertTemplates'
-              configured:
-                type: boolean
-              variables:
-                type: array
-                items:
-                  type: string
-              defaults:
-                type: object
-                additionalProperties:
-                  $ref: '#/definitions/ProjectAlertTemplates'
-        403:
-          description: Project update permission required
-    put:
-      tags: [alerts]
-      summary: Save success and error templates for the project
-      description: Updates only message templates, preserving channel and general project settings. Requires project update permission. Maximum request size is 32 KiB.
-      parameters:
-        - name: body
-          in: body
-          required: true
-          schema:
-            $ref: '#/definitions/ProjectAlertTemplateRequest'
-      responses:
-        200:
-          description: Saved templates
-          schema:
-            $ref: '#/definitions/ProjectAlertTemplates'
-        400:
-          description: Invalid template, language or timezone
-        403:
-          description: Project update permission required
-  /project/{project_id}/alerts/templates/preview:
+  /project/{project_id}/alerts/telegram/templates/preview:
     parameters:
       - $ref: '#/parameters/project_id'
     post:
       tags: [alerts]
-      summary: Preview a task result notification
-      description: Requires project update permission. Uses submitted templates with synthetic task data; never saves settings or starts a task. Maximum request size is 32 KiB.
+      summary: Preview a Telegram task result notification
+      description: Requires project update permission. Uses submitted channel templates with synthetic task data; never sends, saves settings or starts a task. Maximum request size is 32 KiB.
       parameters:
         - name: body
           in: body
@@ -4745,45 +4725,16 @@ paths:
             $ref: '#/definitions/ProjectAlertTemplateRequest'
       responses:
         200:
-          description: Rendered sample (the test endpoint sends it with a test prefix)
+          description: Rendered sample
           schema:
             type: object
             properties:
               text:
                 type: string
         400:
-          description: Invalid input or disabled test channel
+          description: Invalid input
         403:
           description: Project update permission required
-        502:
-          description: Test delivery failed
-  /project/{project_id}/alerts/templates/test:
-    parameters:
-      - $ref: '#/parameters/project_id'
-    post:
-      tags: [alerts]
-      summary: Send a sample task result notification to saved project Telegram settings
-      description: Requires project update permission. Uses submitted templates with synthetic task data; never saves settings or starts a task. Maximum request size is 32 KiB.
-      parameters:
-        - name: body
-          in: body
-          required: true
-          schema:
-            $ref: '#/definitions/ProjectAlertTemplateRequest'
-      responses:
-        200:
-          description: Rendered sample (the test endpoint sends it with a test prefix)
-          schema:
-            type: object
-            properties:
-              text:
-                type: string
-        400:
-          description: Invalid input or disabled test channel
-        403:
-          description: Project update permission required
-        502:
-          description: Test delivery failed
 
   # project runners
   /project/{project_id}/runners:

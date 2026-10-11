@@ -61,17 +61,11 @@
             <v-tab href="#telegram" data-testid="alerts-channel-telegram">
               <v-icon left size="20">$vuetify.icons.telegram</v-icon>Telegram
             </v-tab>
-            <v-tab href="#templates" data-testid="alerts-message-templates">
-              {{ $t('alertMessageTemplates') }}
-            </v-tab>
           </v-tabs>
           <v-divider />
           <v-tabs-items v-model="alertChannel">
             <v-tab-item value="telegram">
               <TelegramAlertSettings :project-id="projectId" />
-            </v-tab-item>
-            <v-tab-item value="templates">
-              <ProjectAlertTemplates :project-id="projectId" />
             </v-tab-item>
           </v-tabs-items>
         </v-card>
@@ -197,7 +191,6 @@
 <script>
 import EventBus from '@/event-bus';
 import ProjectForm from '@/components/ProjectForm.vue';
-import ProjectAlertTemplates from '@/components/ProjectAlertTemplates.vue';
 import TelegramAlertSettings from '@/components/TelegramAlertSettings.vue';
 import ProjectTokens from '@/components/ProjectTokens.vue';
 import { getErrorMessage } from '@/lib/error';
@@ -212,7 +205,6 @@ export default {
     YesNoDialog,
     ProjectForm,
     TelegramAlertSettings,
-    ProjectAlertTemplates,
     ProjectTokens,
   },
   props: {

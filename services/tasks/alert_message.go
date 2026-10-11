@@ -10,23 +10,28 @@ import (
 	"github.com/impishMD/TExec/pkg/tz"
 )
 
-// Render once for all transports, using current project settings at completion.
+// Render with the current settings of this channel at completion.
 // Empty means legacy formatting, including all non-terminal status notifications.
-func (t *TaskRunner) projectAlertMessage() string {
+func (t *TaskRunner) projectAlertMessage(channel string) string {
 	if t.shouldSkipStatusAlert() || (t.Task.Status != task_logger.TaskSuccessStatus && t.Task.Status != task_logger.TaskFailStatus) {
 		return ""
 	}
-	project, err := t.pool.store.GetProject(t.Template.ProjectID)
+	saved, err := t.pool.store.GetAlertChannel(t.Template.ProjectID, channel)
 	if err != nil {
 		t.Log("Can't load project notification templates; using default message")
 		return ""
 	}
-	settings, err := taskmessage.Parse(project.NotificationTemplates)
+	settings, err := taskmessage.Parse(saved.MessageTemplates)
 	if err != nil {
 		t.Log("Invalid project notification templates; using default message")
 		return ""
 	}
 	if settings == nil {
+		return ""
+	}
+	project, err := t.pool.store.GetProject(t.Template.ProjectID)
+	if err != nil {
+		t.Log("Can't load project for notification; using default message")
 		return ""
 	}
 	at := tz.Now()

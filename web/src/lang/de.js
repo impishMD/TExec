@@ -1,12 +1,12 @@
 export default {
+  alertChannelGeneral: 'Allgemein',
+  alertMessageTemplatesHint: 'Vorlagen für Erfolg und Fehler gelten für diesen Kanal. Die Benachrichtigungseinstellungen der Aufgaben haben weiterhin Vorrang.',
+  alertMessageResetHint: 'Zurücksetzen stellt diese Vorlage in der aktuellen Sprache der Oberfläche wieder her. Ein Sprachwechsel ändert gespeicherten Text nicht.',
+  alertMessageVariablesHint: 'Nur Klartext. Datum und Uhrzeit beziehen sich auf den Abschluss der Aufgabe. Fehlende Werte erscheinen als —. Der Test verwendet die aktuellen Kanaleinstellungen und die gewählte Vorlage.',
   alertMessageTemplates: 'Nachrichtenvorlagen',
-  alertMessageTemplatesHint: 'Gemeinsame Erfolgs- und Fehlermeldungen für alle Projektkanäle. Die Aufgabeneinstellungen gelten weiterhin.',
-  alertMessageTemplatesUnsaved: 'Zum Anwenden speichern. Bis dahin bleibt das bisherige Format erhalten.',
-  alertMessageLanguage: 'Nachrichtensprache',
   alertMessageSuccess: 'Erfolg',
   alertMessageError: 'Fehler',
   alertMessageReset: 'Diese Vorlage zurücksetzen',
-  alertMessageVariablesHint: 'Nur Klartext. Datum und Uhrzeit: Aufgabenabschluss. Fehlende Werte: —. Der Test sendet das Beispiel an den gespeicherten Telegram-Kanal.',
   alertMessageOtherInvalid: 'Vor dem Speichern die Vorlage auf der anderen Registerkarte prüfen.',
 
   workflowNodeKindNotification: 'Notification',

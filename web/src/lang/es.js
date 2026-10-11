@@ -1,12 +1,12 @@
 export default {
+  alertChannelGeneral: 'General',
+  alertMessageTemplatesHint: 'Las plantillas de éxito y error se aplican a este canal. Las preferencias de notificación de las tareas mantienen su prioridad.',
+  alertMessageResetHint: 'Restablecer recupera esta plantilla en el idioma actual de la interfaz. Cambiar de idioma no modifica el texto guardado.',
+  alertMessageVariablesHint: 'Solo texto sin formato. La fecha y la hora indican la finalización de la tarea. Los valores ausentes se muestran como —. La prueba usa la configuración actual del canal y la plantilla seleccionada.',
   alertMessageTemplates: 'Plantillas de mensajes',
-  alertMessageTemplatesHint: 'Mensajes comunes a todos los canales del proyecto. Se respetan las preferencias de las tareas.',
-  alertMessageTemplatesUnsaved: 'Guarde para aplicar las plantillas. Hasta entonces se mantiene el formato actual.',
-  alertMessageLanguage: 'Idioma de los mensajes',
   alertMessageSuccess: 'Éxito',
   alertMessageError: 'Error',
   alertMessageReset: 'Restablecer esta plantilla',
-  alertMessageVariablesHint: 'Texto sin formato. Fecha y hora: finalización de la tarea. Valores ausentes: —. La prueba envía el ejemplo al canal Telegram guardado.',
   alertMessageOtherInvalid: 'Revise la plantilla de la otra pestaña antes de guardar.',
 
   workflowNodeKindNotification: 'Notification',

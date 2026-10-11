@@ -43,9 +43,15 @@ func TestProjectMessageDeliveredAndSuppressed(t *testing.T) {
 		Template: db.Template{ProjectID: project.ID, Name: "<tag>\n\"quoted\"", Type: db.TemplateTask},
 		pool:     &TaskPool{store: store, logger: make(chan logRecord, 20), workflowRepo: notificationOutputStore{}},
 	}
-	require.Empty(t, runner.projectAlertMessage(), "existing projects keep legacy formatting")
-	require.NoError(t, store.SetProjectNotificationTemplates(project.ID, settings))
-	text := runner.projectAlertMessage()
+	require.Empty(t, runner.projectAlertMessage("telegram"), "existing projects keep legacy formatting")
+	raw, marshalErr := json.Marshal(settings)
+	require.NoError(t, marshalErr)
+	channel, channelErr := store.GetAlertChannel(project.ID, "telegram")
+	require.NoError(t, channelErr)
+	channel.MessageTemplates = new(string(raw))
+	require.NoError(t, store.SetAlertChannel(channel))
+	require.Empty(t, runner.projectAlertMessage("slack"), "Telegram text must not leak to another channel")
+	text := runner.projectAlertMessage("telegram")
 	require.Equal(t, "Успешно <tag>\n\"quoted\" #42 CI", text)
 	service := alerting.Service{Store: store}
 	_, err = service.UpdateTelegram(project.ID, alerting.TelegramUpdate{Enabled: true, ChatID: "@preview", Token: new("123:test-token")})
@@ -62,11 +68,11 @@ func TestProjectMessageDeliveredAndSuppressed(t *testing.T) {
 	runner.sendTelegramAlert(text)
 	require.Equal(t, 1, calls)
 	runner.Template.SuppressSuccessAlerts = true
-	require.Empty(t, runner.projectAlertMessage())
+	require.Empty(t, runner.projectAlertMessage("telegram"))
 	runner.sendTelegramAlert(text)
 	require.Equal(t, 1, calls)
 	runner.Task.Status = task_logger.TaskFailStatus
-	text = runner.projectAlertMessage()
+	text = runner.projectAlertMessage("telegram")
 	require.Equal(t, "Ошибка ERROR: connection failed token=[redacted]", text)
 	runner.sendTelegramAlert(text)
 	require.Equal(t, 2, calls)
@@ -74,13 +80,18 @@ func TestProjectMessageDeliveredAndSuppressed(t *testing.T) {
 	runner.sendTelegramAlert(text)
 	require.Equal(t, 2, calls)
 	runner.Task.Status = task_logger.TaskWaitingConfirmation
-	require.Empty(t, runner.projectAlertMessage(), "success/error templates do not replace approval notifications")
+	require.Empty(t, runner.projectAlertMessage("telegram"), "success/error templates do not replace approval notifications")
 	// Rendering reads saved settings anew, also for already-running tasks.
 	settings.Success = "updated"
-	require.NoError(t, store.SetProjectNotificationTemplates(project.ID, settings))
+	raw, err = json.Marshal(settings)
+	require.NoError(t, err)
+	channel, err = store.GetAlertChannel(project.ID, "telegram")
+	require.NoError(t, err)
+	channel.MessageTemplates = new(string(raw))
+	require.NoError(t, store.SetAlertChannel(channel))
 	runner.Template.SuppressSuccessAlerts = false
 	runner.Task.Status = task_logger.TaskSuccessStatus
-	require.Equal(t, "updated", runner.projectAlertMessage())
+	require.Equal(t, "updated", runner.projectAlertMessage("telegram"))
 }
 
 func TestCommonMessageEscapingAcrossTransports(t *testing.T) {

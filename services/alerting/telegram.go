@@ -22,7 +22,7 @@ func (s Service) SendTelegram(projectID int, text string, client *http.Client) (
 	return s.sendProjectTelegram(context.Background(), projectID, text, "", "", false, client)
 }
 
-// SendTaskNotification delivers channel-independent plain text with the saved
+// SendTaskNotification delivers channel-specific plain text with the saved
 // project destination. Disabled channels are a no-op, as for legacy task alerts.
 func (s Service) SendTaskNotification(ctx context.Context, projectID int, text string, client *http.Client) (bool, error) {
 	return s.sendProjectTelegram(ctx, projectID, text, "", "", true, client)
@@ -77,6 +77,15 @@ func (s Service) sendProjectTelegram(ctx context.Context, projectID int, text, l
 // TestTelegram sends using the submitted form without changing saved settings.
 // A nil token uses the saved override; an empty token selects the global token.
 func (s Service) TestTelegram(ctx context.Context, projectID int, update TelegramUpdate, locale string, client *http.Client) error {
+	text := "TExec: test notification. Telegram delivery is working."
+	if strings.HasPrefix(locale, "ru") {
+		text = "TExec: тестовое оповещение. Отправка в Telegram работает."
+	}
+	return s.TestTelegramMessage(ctx, projectID, update, text, client)
+}
+
+// TestTelegramMessage shares destination and credential resolution with the channel form.
+func (s Service) TestTelegramMessage(ctx context.Context, projectID int, update TelegramUpdate, text string, client *http.Client) error {
 	chatID := strings.TrimSpace(update.ChatID)
 	if len(chatID) > 128 || !chatPattern.MatchString(chatID) {
 		return common_errors.NewValidationError("Enter a Telegram chat ID or channel @username")
@@ -111,11 +120,7 @@ func (s Service) TestTelegram(ctx context.Context, projectID int, update Telegra
 	if len(token) > 256 || !tokenPattern.MatchString(token) {
 		return common_errors.NewValidationError("Invalid Telegram bot token")
 	}
-	text := "TExec: test notification. Telegram delivery is working."
-	if strings.HasPrefix(locale, "ru") {
-		text = "TExec: тестовое оповещение. Отправка в Telegram работает."
-	}
-	_, err = sendTelegram(ctx, token, chatID, text, client)
+	_, err = sendTelegramMessage(ctx, token, chatID, text, "", "", true, client)
 	return err
 }
 

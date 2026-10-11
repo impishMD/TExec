@@ -1,6 +1,7 @@
 package taskmessage
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -27,7 +28,7 @@ func TestTaskMessages(t *testing.T) {
 	require.Contains(t, text, "Error: unavailable")
 	_, err = s.Render("running", at, values)
 	require.Error(t, err)
-	s.Locale = "en"
+	s.SuccessLocale = "en"
 	s.Success = "{{ task.status }} {{ task.message }}"
 	values["task.message"] = strings.Repeat("я", 5000)
 	text, err = s.Render("success", at, values)
@@ -42,11 +43,47 @@ func TestTaskMessages(t *testing.T) {
 	s.Timezone = "nowhere/invalid"
 	require.Error(t, s.Validate())
 	s = Defaults("en")
-	s.Locale = "xx"
+	s.SuccessLocale = "xx"
 	require.Error(t, s.Validate())
 	parsed, err := Parse(nil)
 	require.NoError(t, err)
 	require.Nil(t, parsed)
 	_, err = Parse(new(`{"success":""}`))
 	require.Error(t, err)
+}
+
+func TestDefaultsAndLocaleSnapshots(t *testing.T) {
+	require.Len(t, AllDefaults(), 15)
+	for locale, settings := range AllDefaults() {
+		require.NoError(t, settings.Validate(), locale)
+		for _, status := range []string{"success", "error"} {
+			text, err := settings.Render(status, time.Now(), SampleValues(locale, "Project", "admin", status))
+			require.NoError(t, err, locale)
+			require.NotContains(t, text, "{{", locale)
+		}
+		raw, err := json.Marshal(settings)
+		require.NoError(t, err)
+		restored, err := Parse(new(string(raw)))
+		require.NoError(t, err)
+		require.Equal(t, settings, *restored)
+	}
+	require.Equal(t, "zh_cn", NormalizeLocale("zh-CN"))
+	require.Equal(t, "ja", NormalizeLocale("ja-JP"))
+	require.Equal(t, "pt_br", NormalizeLocale("pt-BR"))
+	// A reset of success in Japanese must leave the Russian error template intact.
+	saved := Defaults("ru")
+	japanese := Defaults("ja")
+	saved.Success, saved.SuccessLocale = japanese.Success, japanese.SuccessLocale
+	success, err := saved.Render("success", time.Now(), nil)
+	require.NoError(t, err)
+	require.Contains(t, success, "成功")
+	failure, err := saved.Render("error", time.Now(), nil)
+	require.NoError(t, err)
+	require.Contains(t, failure, "Ошибка")
+	legacy := `{"success":"Мой {{task.status}}","error":"Ошибка","timezone":"UTC","locale":"ru"}`
+	parsed, err := Parse(&legacy)
+	require.NoError(t, err)
+	require.Equal(t, "ru", parsed.SuccessLocale)
+	require.Equal(t, "ru", parsed.ErrorLocale)
+	require.Equal(t, "Мой {{task.status}}", parsed.Success)
 }
