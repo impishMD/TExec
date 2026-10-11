@@ -6,24 +6,21 @@
     v-if="templates && item != null"
   >
     <v-alert
-      v-model="showInfo"
-      color="info"
-      text
-      dismissible
-      class="mb-6"
-    >
-      <i18n path="scheduleTimezoneHint" tag="span">
-        <code place="environmentVariable">TEXEC_SCHEDULE_TIMEZONE</code>
-        <code place="configParameter">schedule.timezone</code>
-      </i18n>
-    </v-alert>
-
-    <v-alert
       :value="formError"
       color="error"
       class="pb-2"
     >{{ formError }}
     </v-alert>
+
+    <v-switch
+      v-model="item.active"
+      :label="$t('enabled')"
+      :disabled="formSaving"
+      class="mt-0 mb-6 pt-0"
+      data-testid="schedule-enabled"
+      hide-details
+      inset
+    />
 
     <v-text-field
       v-model="item.name"
@@ -247,16 +244,6 @@
       </template>
     </v-simple-table>
 
-    <v-checkbox
-      style="position: absolute; bottom: 15px; left: 22px;"
-      v-model="item.active"
-      hide-details
-    >
-      <template v-slot:label>
-        {{ $t('enabled') }}
-      </template>
-    </v-checkbox>
-
   </v-form>
 </template>
 
@@ -415,7 +402,6 @@ export default {
       weekdays: [],
       rawCron: false,
       disableRawCron: false,
-      showInfo: true,
       cronFormatError: null,
       runAtInput: '',
     };
@@ -430,17 +416,9 @@ export default {
       }
     },
 
-    showInfo(val) {
-      if (val) {
-        localStorage.removeItem('schedule__hide_info');
-      } else {
-        localStorage.setItem('schedule__hide_info', '1');
-      }
-    },
   },
 
   async created() {
-    this.showInfo = localStorage.getItem('schedule__hide_info') !== '1';
     this.rawCron = localStorage.getItem('schedule__raw_cron') !== '1';
 
     this.templates = (await axios({

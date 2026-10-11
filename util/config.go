@@ -362,7 +362,7 @@ type ConfigAppNamespaces struct {
 }
 
 type ScheduleConfig struct {
-	Timezone string `json:"timezone,omitempty" env:"TEXEC_SCHEDULE_TIMEZONE" default:"UTC"`
+	Timezone string `json:"timezone,omitempty" env:"TEXEC_SCHEDULE_TIMEZONE"`
 }
 
 type DebuggingConfig struct {

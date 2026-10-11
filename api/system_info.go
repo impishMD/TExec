@@ -49,12 +49,6 @@ func (c *SystemInfoController) GetSystemInfo(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	timezone := util.Config.Schedule.Timezone
-
-	if timezone == "" {
-		timezone = "UTC"
-	}
-
 	roles, err := helpers.Store(r).GetGlobalRoles()
 	if err != nil {
 		log.WithFields(log.Fields{
@@ -79,7 +73,7 @@ func (c *SystemInfoController) GetSystemInfo(w http.ResponseWriter, r *http.Requ
 		LoginWithPassword: !util.Config.PasswordLoginDisable,
 		Features:          features.Available(),
 		GitClient:         util.Config.GitClientId,
-		ScheduleTimezone:  timezone,
+		ScheduleTimezone:  settings.ScheduleTimezone.Value,
 		Teams:             util.Config.Teams,
 		Roles:             roles,
 		BoltdbUsed:        util.Config.Dialect == "bolt",

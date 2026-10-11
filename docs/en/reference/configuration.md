@@ -157,7 +157,7 @@ Concurrency, retention, and the environment task processes run in.
 | `process.app_namespaces.pid`<br />`TEXEC_PROCESS_APP_NS_PID` | boolean | Hides host processes from child apps (CLONE_NEWPID). |
 | `process.app_namespaces.ipc`<br />`TEXEC_PROCESS_APP_NS_IPC` | boolean | Isolates SysV IPC and POSIX message queues (CLONE_NEWIPC). |
 | `process.app_namespaces.uts`<br />`TEXEC_PROCESS_APP_NS_UTS` | boolean | Isolates hostname and domain (CLONE_NEWUTS). |
-| `schedule.timezone`<br />`TEXEC_SCHEDULE_TIMEZONE` | string<br />Default: `UTC` | Timezone used for scheduling tasks and cron jobs. Default: UTC |
+| `schedule.timezone`<br />`TEXEC_SCHEDULE_TIMEZONE` | string | Overrides the database timezone for schedules. When unset, uses the saved preference in General settings, or the server system timezone if no preference is saved. Environment variables take precedence over configuration. |
 
 <a id="runners"></a>
 

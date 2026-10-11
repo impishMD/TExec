@@ -575,7 +575,7 @@ $defs:
   ScheduleConfig:
     type: object
     properties:
-      timezone: { type: string, default: UTC }
+      timezone: { type: string, description: "Overrides the database schedule timezone; unset uses the database preference or the server system timezone." }
 
   DebuggingConfig:
     type: object

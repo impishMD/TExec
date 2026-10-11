@@ -10,7 +10,16 @@ Choose an unused version and tag for every release. Container repositories are
 
 ## Prepare
 
-1. Create `release/<version>` from the feature branch being released. Update `VERSION`, frontend package versions and deployment examples.
+Use `dev` for day-to-day integration:
+
+- Start `fix/<task>` and `feature/<task>` from current `dev`, validate changes locally and open a pull request targeting `dev`. Merge through the PR after its checks pass; do not push changes directly into `dev`.
+- PRs into `dev` run **Dev PR checks**: Go vet, frontend lint, documentation and version checks, translations and GitHub Actions validation. They do not run test suites, build containers/packages or install Helm charts. New commits cancel obsolete checks for the same PR.
+- Merging into `dev` does not run CI again or publish images/releases. Full checks remain enabled for `main`, `release/*`, PRs targeting branches other than `dev`, and manual workflow dispatch. Run tests relevant to each change locally before opening its PR.
+- `main` contains released code. Do not bump versions or create tags for each fix; prepare a version for a batch of changes.
+- Create `release/<version>` from `dev` when the batch is ready. Only release fixes enter that branch; new features continue in `dev`.
+- For an urgent production fix, start `hotfix/<task>` from `main`, publish it through a separate `release/*` branch, then merge it back into both `main` and `dev`.
+
+1. Create `release/<version>` from `dev`. Update `VERSION`, frontend package versions and deployment examples.
 2. Update `CHANGELOG.md` and add `release-notes/en/v<version>.md` and `release-notes/ru/v<version>.md` for GitHub Releases. Keep user guides focused on current behavior.
 3. Run `make test`, `make check`, `make build`, runtime smoke tests, and `make release-check`.
 4. Commit/push the release branch and wait for CI, Packages and Helm CI to pass. The tag must point to the same verified commit; merging into `main` is not required before publication.
@@ -27,10 +36,11 @@ GoReleaser 2.18.2 defines four Linux/macOS archives (amd64/arm64), four Linux DE
 a source archive and `checksums.txt`. Packages are not GPG signed. Binary archives include
 both documentation languages and license notices.
 
-## Merge back into main
+## Merge back into main and dev
 
-After the release branch passes its checks, merge it into `main` so the next feature
-starts from the released code. Keep the application and chart tags on the verified
+After the release branch passes its checks, merge it into `main`. After publication,
+merge the release branch back into `dev`, including version changes and release fixes.
+Keep the application and chart tags on the verified
 release-branch commit. When the merge introduces no code changes, skip duplicate CI:
 
 ```sh
@@ -39,10 +49,17 @@ git switch main
 git pull --ff-only origin main
 git merge --no-ff release/1.2.0 -m "Merge release/1.2.0 into main [skip ci]"
 git push origin main
+gh pr create --base dev --head release/1.2.0 \
+  --title "Merge release/1.2.0 back into dev" \
+  --body "Bring the released version and release fixes back into development."
+gh pr checks release/1.2.0 --watch
+gh pr merge release/1.2.0 --merge
 ```
 
 Replace `1.2.0` with the release version. If the merge requires conflict resolutions
 or other code changes, run CI for the resulting commit instead of adding `[skip ci]`.
+The PR back into `dev` runs the same quick checks. Validate combined behavior locally
+or dispatch full CI manually if conflict resolutions need additional tests.
 
 ## Credentials
 

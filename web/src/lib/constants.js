@@ -248,7 +248,7 @@ export const TERRAFORM_FIELDS = {
     label: 'auto_destroy',
   },
   allow_override_inventory: {
-    label: 'allowInventoryInTask',
+    label: 'uiWorkspace',
   },
   override_backend: {
     label: 'terraform_override_backend',

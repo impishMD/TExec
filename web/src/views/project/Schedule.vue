@@ -91,6 +91,9 @@
         <v-switch
           :disabled="!can(USER_PERMISSIONS.manageProjectResources)"
           v-model="item.active"
+          :aria-label="$t('enabled')"
+          class="ma-0 pa-0"
+          hide-details
           inset
           @change="setActive(item.id, item.active)"
         ></v-switch>
@@ -202,7 +205,7 @@ export default {
 
     getHeaders() {
       return [{
-        text: '',
+        text: this.$i18n.t('enabled'),
         value: 'active',
         sortable: false,
       }, {

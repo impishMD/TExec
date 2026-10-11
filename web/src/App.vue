@@ -1058,6 +1058,9 @@ export default {
     EventBus.$on('i-server-settings', (settings) => {
       if (this.systemInfo) {
         this.systemInfo.use_remote_runner = settings.use_remote_runner;
+        if (settings.schedule_timezone) {
+          this.systemInfo.schedule_timezone = settings.schedule_timezone.value;
+        }
       }
     });
 
