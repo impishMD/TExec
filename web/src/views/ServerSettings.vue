@@ -16,6 +16,33 @@
       </v-btn>
       <v-card v-if="settings" outlined class="pa-6">
         <v-form @submit.prevent="save">
+          <v-combobox
+            v-model="scheduleTimezone"
+            :items="timezones"
+            :label="$t('scheduleTimezone')"
+            :placeholder="$t('scheduleTimezoneSystem', { zone: settings.schedule_timezone.system })"
+            :disabled="saving || timezoneLocked"
+            aria-describedby="schedule-timezone-hint"
+            hide-details
+            clearable
+            outlined
+            dense
+            class="mb-4"
+            data-testid="server-schedule-timezone"
+          />
+          <p id="schedule-timezone-hint" class="text-body-2 text--secondary">
+            {{ $t('scheduleTimezoneSettingsHint') }}
+          </p>
+          <p class="text-body-2 text--secondary" data-testid="schedule-timezone-effective">
+            {{ $t('scheduleTimezoneEffective', { zone: settings.schedule_timezone.value }) }}
+          </p>
+          <v-alert v-if="timezoneLocked" type="info" text data-testid="schedule-timezone-locked">
+            {{ $t(settings.schedule_timezone.source === 'environment'
+              ? 'scheduleTimezoneEnvironmentOverride' : 'scheduleTimezoneConfigurationOverride', {
+                zone: settings.schedule_timezone.value,
+              }) }}
+          </v-alert>
+          <v-divider class="my-6" />
           <v-switch
             v-model="useRemoteRunner"
             :label="$t('remoteRunnersDefault')"
@@ -53,13 +80,27 @@ export default {
   data: () => ({
     settings: null,
     useRemoteRunner: false,
+    scheduleTimezone: '',
     loading: true,
     saving: false,
     error: '',
   }),
   computed: {
     dirty() {
-      return this.settings && this.useRemoteRunner !== this.settings.use_remote_runner;
+      return this.settings && (this.useRemoteRunner !== this.settings.use_remote_runner
+        || (!this.timezoneLocked
+          && (this.scheduleTimezone || '') !== this.settings.schedule_timezone.saved));
+    },
+    timezoneLocked() {
+      return ['environment', 'configuration'].includes(this.settings?.schedule_timezone.source);
+    },
+    timezones() {
+      return [...new Set([
+        this.settings?.schedule_timezone.system,
+        this.settings?.schedule_timezone.saved,
+        'UTC', 'Europe/Moscow',
+        ...(Intl.supportedValuesOf ? Intl.supportedValuesOf('timeZone') : []),
+      ].filter(Boolean))];
     },
   },
   created() { this.load(); },
@@ -68,6 +109,8 @@ export default {
     apply(settings) {
       this.settings = settings;
       this.useRemoteRunner = settings.use_remote_runner;
+      this.scheduleTimezone = this.timezoneLocked
+        ? settings.schedule_timezone.value : settings.schedule_timezone.saved;
       EventBus.$emit('i-server-settings', settings);
     },
     async load() {
@@ -87,9 +130,11 @@ export default {
       this.error = '';
       this.saving = true;
       try {
-        this.apply((await axios.put('/api/settings', {
+        const data = {
           use_remote_runner: this.useRemoteRunner,
-        })).data);
+        };
+        if (!this.timezoneLocked) data.schedule_timezone = this.scheduleTimezone || '';
+        this.apply((await axios.put('/api/settings', data)).data);
         EventBus.$emit('i-snackbar', { color: 'success', text: this.$t('serverSettingsSaved') });
       } catch (err) {
         this.error = getErrorMessage(err);

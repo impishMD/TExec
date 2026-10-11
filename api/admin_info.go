@@ -85,11 +85,7 @@ func getAdminInfo(w http.ResponseWriter, r *http.Request) {
 		"home_dir_mode": util.Config.HomeDirMode,
 	}
 
-	if util.Config.Schedule != nil && util.Config.Schedule.Timezone != "" {
-		systemInfo["schedule_timezone"] = util.Config.Schedule.Timezone
-	} else {
-		systemInfo["schedule_timezone"] = "UTC"
-	}
+	systemInfo["schedule_timezone"] = settings.ScheduleTimezone.Value
 
 	// Feature flags
 	features := map[string]any{

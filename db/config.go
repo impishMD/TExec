@@ -36,6 +36,10 @@ func FillConfigFromDB(store Store) (err error) {
 		return
 	}
 
+	// This option is resolved at runtime, below environment/file configuration.
+	// Do not copy it into Config: that would lose its source and make it read-only.
+	delete(opts, "schedule.timezone")
+
 	options := ConvertFlatToNested(opts)
 
 	if options["apps"] == nil {

@@ -1787,6 +1787,24 @@ definitions:
         default: false
         description: Database-backed server default for new tasks without an explicit runner tag. Enabled selects remote runners marked as default; disabled runs tasks locally. Explicit tags always select remote runners.
 
+      schedule_timezone:
+        type: object
+        readOnly: true
+        properties:
+          value: { type: string, description: Effective schedule timezone. }
+          saved: { type: string, description: Database preference; empty follows the server system timezone. }
+          source: { type: string, enum: [environment, configuration, database, system] }
+          system: { type: string, description: Server system timezone. }
+
+  ServerSettingsUpdate:
+    type: object
+    required: [use_remote_runner]
+    properties:
+      use_remote_runner: { type: boolean }
+      schedule_timezone:
+        type: string
+        description: Optional IANA timezone; empty resets to the server system timezone. Omit to preserve the database value. Rejected when TEXEC_SCHEDULE_TIMEZONE or schedule.timezone in configuration overrides the database.
+
   InfoType:
     type: object
     properties:
@@ -4579,20 +4597,20 @@ paths:
     put:
       tags: [settings]
       summary: Save general server settings (administrators only)
-      description: Persists settings in the database and applies them to newly created tasks without a server restart. Already assigned tasks stay on their runners.
+      description: Persists settings in the database without a server restart. Recurring schedules are recalculated in the selected timezone; one-time run instants stay unchanged. Runner defaults apply to new tasks.
       parameters:
         - in: body
           name: settings
           required: true
           schema:
-            $ref: "#/definitions/ServerSettings"
+            $ref: "#/definitions/ServerSettingsUpdate"
       responses:
         200:
           description: Saved server settings
           schema:
             $ref: "#/definitions/ServerSettings"
         400:
-          description: Missing or invalid boolean setting
+          description: Missing or invalid setting, or timezone controlled by environment/configuration
         403:
           description: Administrator access required
 
