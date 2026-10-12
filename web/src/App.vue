@@ -742,6 +742,7 @@ html.WorkflowEditor-html body {
 import {
   applyTheme, themeVariables, resolveTheme, themeById, personalThemeFromOptions,
 } from '@/lib/appearance';
+import { applyFavicon, themeFavicon } from '@/lib/favicon';
 import DisplayLabelsMixin from '@/components/DisplayLabelsMixin';
 import axios from 'axios';
 import { getErrorMessage } from '@/lib/error';
@@ -823,6 +824,10 @@ export default {
   },
 
   watch: {
+    favicon: {
+      immediate: true,
+      handler: applyFavicon,
+    },
     effectiveTheme: {
       immediate: true,
       handler(id) { applyTheme(this.$vuetify, id); },
@@ -889,6 +894,7 @@ export default {
   },
 
   computed: {
+    favicon() { return themeFavicon(this.effectiveTheme, this.darkMode); },
     effectiveTheme() { return resolveTheme(this.user ? this.personalTheme : '', this.globalTheme); },
     appearanceVariables() { return themeVariables(this.effectiveTheme, this.darkMode); },
     highContrast() { return themeById(this.effectiveTheme).accessible; },
