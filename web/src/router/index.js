@@ -1,5 +1,6 @@
 import Vue from 'vue';
 import Alerts from '@/views/Alerts.vue';
+import Appearance from '@/views/Appearance.vue';
 import ServerSettings from '@/views/ServerSettings.vue';
 import VueRouter from 'vue-router';
 import RestoreProject from '@/views/project/RestoreProject.vue';
@@ -43,6 +44,7 @@ import WorkflowEditor from '../views/project/WorkflowEditor.vue';
 Vue.use(VueRouter);
 
 const routes = [
+  { path: '/appearance', component: Appearance },
   { path: '/settings', component: ServerSettings },
   { path: '/alerts', component: Alerts },
   {

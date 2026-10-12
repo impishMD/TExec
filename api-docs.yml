@@ -1782,6 +1782,9 @@ definitions:
     type: object
     required: [use_remote_runner]
     properties:
+      appearance_theme:
+        type: string
+        description: Built-in global palette ID, stored in the database. The texec palette is the original default. Omit on update to preserve the saved value.
       use_remote_runner:
         type: boolean
         default: false
@@ -1800,6 +1803,9 @@ definitions:
     type: object
     required: [use_remote_runner]
     properties:
+      appearance_theme:
+        type: string
+        description: Built-in global palette ID, stored in the database. The texec palette is the original default. Omit on update to preserve the saved value.
       use_remote_runner: { type: boolean }
       schedule_timezone:
         type: string
@@ -1808,6 +1814,7 @@ definitions:
   InfoType:
     type: object
     properties:
+      appearance_theme: { type: string, description: Current global palette ID. }
       version:
         type: string
       ansible:
@@ -2259,6 +2266,18 @@ parameters:
     x-example: 17
 
 paths:
+  /appearance:
+    get:
+      tags: [system]
+      summary: Get the global appearance for the login page
+      security: []
+      responses:
+        200:
+          description: Public palette ID only. No other server or user settings are exposed.
+          schema:
+            type: object
+            properties:
+              theme: { type: string, example: texec }
   /project/{project_id}/secret_storages/{storage_id}/paths:
     parameters:
       - $ref: '#/parameters/project_id'
@@ -2690,7 +2709,9 @@ paths:
         allowlisted suffix (e.g. `nav.unpinnedItems`); the server prepends
         the user namespace, so a request can never read or write another
         user's options or a global option. Unknown keys are rejected
-        with 400.
+        with 400. For `appearance.theme`, the value is a JSON-encoded built-in
+        palette ID, or a JSON-encoded empty string to inherit the global default.
+        The light/dark toggle is independent and remains browser-local.
       consumes:
         - application/json
       parameters:

@@ -22,6 +22,35 @@ Keep the encryption key with backups; replacing it prevents decrypting existing 
 Set the public URL when using a reverse proxy. Authentication settings include local
 accounts, LDAP and OpenID Connect; configure providers using the reference.
 
+## Appearance
+
+Administrators can select a global palette under **Management → General settings → Appearance**.
+**Default** in these settings is the original TExec palette. The global choice applies to the
+login page and to accounts without a personal override.
+
+Users can open **Account → Appearance**, immediately below **Edit account**. **Default** here
+inherits the global choice; selecting another palette saves a personal preference in the database,
+which follows the account across browsers. Selecting a card previews it; **Save** applies the choice.
+The existing sun/moon control still switches light and dark mode independently, per browser.
+Other open sessions receive the global palette on reload or when the browser window gains focus.
+
+There are ten palettes: TExec, Ocean, Indigo, Nord, Dracula, Solarized, Gruvbox, Catppuccin,
+Rosé Pine and Graphite. Each includes light and dark variants adapted to the application.
+Three additional options provide higher contrast: High contrast, Amber contrast and Blue & orange.
+They strengthen field borders and keyboard focus and retain text/icon status indicators.
+Blue & orange also separates success/error colors without relying on a red/green pair.
+
+Palette tests check text and semantic foregrounds against the page, card and tinted surfaces:
+at least 4.5:1 for regular palettes and 7:1 for the higher-contrast palettes. This checks the
+palette tokens, not a claim of full application WCAG conformance.
+See [WCAG contrast guidance](https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html).
+
+The global ID is saved as `server.appearance.theme` through `PUT /api/settings`
+(`appearance_theme` alongside `use_remote_runner`). The personal ID is stored through
+`POST /api/user/options`, for example `{"key":"appearance.theme","value":"\"nord\""}`.
+Use `"value":"\"\""` to restore inheritance. IDs are validated against the built-in catalog;
+custom CSS, scripts and external themes are not accepted. No schema migration is required.
+
 ## General server settings
 
 Administrators can open **Management (gear) → General settings** and enable

@@ -49,9 +49,14 @@ export default {
 
   computed: {
     chartColors() {
-      return this.$vuetify.theme.dark
-        ? { text: '#a0b5be', grid: '#2b404a', stopped: '#a0b5be' }
-        : { text: '#62777e', grid: '#dfe8e7', stopped: '#62777e' };
+      const current = this.$vuetify.theme.themes[this.$vuetify.theme.dark ? 'dark' : 'light'];
+      return {
+        text: current.muted || '#62777e',
+        grid: current.border || '#dfe8e7',
+        stopped: current.muted || '#62777e',
+        success: current.success,
+        error: current.error,
+      };
     },
 
     chartData() {
@@ -63,15 +68,15 @@ export default {
           {
             status: 'success',
             label: this.$t('status_success'),
-            borderColor: '#4caf50',
-            backgroundColor: '#4caf50',
+            borderColor: this.chartColors.success,
+            backgroundColor: this.chartColors.success,
             data: (this.sourceData || []).map((row) => row.count_by_status.success),
           },
           {
             status: 'error',
             label: this.$t('status_failed'),
-            borderColor: '#ff5252',
-            backgroundColor: '#ff5252',
+            borderColor: this.chartColors.error,
+            backgroundColor: this.chartColors.error,
             data: (this.sourceData || []).map((row) => row.count_by_status.error),
           },
           {

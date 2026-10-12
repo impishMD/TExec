@@ -14,6 +14,7 @@ import (
 type SystemInfoController struct{}
 
 type SystemInfo struct {
+	AppearanceTheme   string            `json:"appearance_theme"`
 	Version           string            `json:"version"`
 	Ansible           string            `json:"ansible"`
 	WebHost           string            `json:"web_host"`
@@ -65,6 +66,7 @@ func (c *SystemInfoController) GetSystemInfo(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	body := SystemInfo{
+		AppearanceTheme:   settings.AppearanceTheme,
 		Version:           util.Version(),
 		Ansible:           util.AnsibleVersion(),
 		WebHost:           util.Config.WebHost,

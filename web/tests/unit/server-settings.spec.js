@@ -7,6 +7,7 @@ import ServerSettings from '@/views/ServerSettings.vue';
 
 const settingsFor = (enabled, saved = '') => ({
   use_remote_runner: enabled,
+  appearance_theme: 'texec',
   schedule_timezone: {
     value: saved || 'UTC', saved, source: saved ? 'database' : 'system', system: 'UTC',
   },
@@ -61,13 +62,29 @@ describe('Server settings', () => {
       await wrapper.find('form').trigger('submit');
       await tick();
       expect(saved[saved.length - 1]).to.deep.equal({
-        url: '/api/settings', data: { use_remote_runner: enabled, schedule_timezone: '' },
+        url: '/api/settings', data: { use_remote_runner: enabled, schedule_timezone: '', appearance_theme: 'texec' },
       });
       expect(updates[updates.length - 1]).to.deep.equal(settingsFor(enabled));
       expect(wrapper.vm.dirty).to.equal(false);
     };
     await setAndSave(true);
     await setAndSave(false);
+  });
+
+  it('saves the global theme and updates the application only after success', async () => {
+    render();
+    await tick();
+    axios.put = async (url, data) => {
+      saved.push({ url, data });
+      return { data: { ...settingsFor(false), appearance_theme: data.appearance_theme } };
+    };
+    await wrapper.find('[data-testid="theme-dracula"] input').setChecked();
+    expect(updates).to.have.length(1);
+    await wrapper.find('form').trigger('submit');
+    await tick();
+    expect(saved[0].data.appearance_theme).to.equal('dracula');
+    expect(updates[1].appearance_theme).to.equal('dracula');
+    expect(wrapper.vm.dirty).to.equal(false);
   });
 
   it('offers retry without showing editable defaults when loading fails', async () => {
@@ -157,7 +174,7 @@ describe('Server settings', () => {
       await wrapper.find('[data-testid="server-remote-runners"]').setChecked(true);
       await wrapper.find('form').trigger('submit');
       await tick();
-      expect(saved[0].data).to.deep.equal({ use_remote_runner: true });
+      expect(saved[0].data).to.deep.equal({ use_remote_runner: true, appearance_theme: 'texec' });
       expect(wrapper.vm.settings.schedule_timezone.saved).to.equal('America/New_York');
     });
   });

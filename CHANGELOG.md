@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Add ten appearance palettes and three higher-contrast options, each with light and dark variants.
+- Configure the global default in General settings and save personal overrides under Account → Appearance.
+- Apply palettes to login, navigation, controls, charts and workflows while keeping the existing light/dark switch.
+
 ## v1.3.0
 
 - Added schedule timezone configuration in General settings, stored in the database.
