@@ -8,6 +8,7 @@ import (
 	"github.com/impishMD/TExec/services/audit"
 	"github.com/impishMD/TExec/services/schedules"
 	"github.com/impishMD/TExec/services/server"
+	"github.com/impishMD/TExec/util/appearance"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -27,6 +28,7 @@ func serverSettings(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var update struct {
+		AppearanceTheme  *string `json:"appearance_theme"`
 		UseRemoteRunner  *bool   `json:"use_remote_runner"`
 		ScheduleTimezone *string `json:"schedule_timezone"`
 	}
@@ -48,6 +50,10 @@ func serverSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if update.AppearanceTheme != nil && !appearance.ValidTheme(*update.AppearanceTheme) {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown appearance theme"})
+		return
+	}
 	settings.UseRemoteRunner = *update.UseRemoteRunner
 	if err := server.SaveServerSettings(store, settings); err != nil {
 		writeServerSettingsError(w, err)
@@ -61,6 +67,13 @@ func serverSettings(w http.ResponseWriter, r *http.Request) {
 		}
 		keys = append(keys, server.ScheduleTimezoneOption)
 		refreshServerSchedules(r)
+	}
+	if update.AppearanceTheme != nil {
+		if err = store.SetOption(appearance.ServerOption, *update.AppearanceTheme); err != nil {
+			writeServerSettingsError(w, err)
+			return
+		}
+		keys = append(keys, appearance.ServerOption)
 	}
 	helpers.Audit(r).Record(r.Context(), audit.Event{
 		Kind:     audit.SystemSettingsUpdate,

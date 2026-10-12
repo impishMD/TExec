@@ -4,6 +4,7 @@ WORKDIR /src/web
 COPY web/package*.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci --no-audit --no-fund
 COPY web/ ./
+COPY util/appearance/themes.json /src/util/appearance/themes.json
 COPY api-docs.yml /src/api-docs.yml
 RUN npm run build
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+## v1.4.0
+
+- Added ten appearance palettes and three higher-contrast options, each with light and dark variants.
+- Added a global default under Management → General settings → Appearance and personal overrides under Account → Appearance, stored in the database.
+- Personal Default inherits the global palette; the global Default retains the original TExec appearance.
+- Applied palettes to login, navigation, controls, charts and workflows while preserving the independent light/dark switch.
+- Matched the TExec logo, wordmark and browser favicon to the active palette and light/dark mode.
+- Helm chart 1.4.0 deploys TExec v1.4.0 with compatible existing values.
+
+[English release notes](release-notes/en/v1.4.0.md) · [Русский](release-notes/ru/v1.4.0.md)
+
 ## v1.3.0
 
 - Added schedule timezone configuration in General settings, stored in the database.
