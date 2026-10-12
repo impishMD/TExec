@@ -58,7 +58,7 @@
       <div class="auth__layout">
         <section class="auth__intro">
           <div class="auth__brand">
-            <BrandLogo :dark="darkMode" :tagline="$t('brandTagline')" large />
+            <BrandLogo :tagline="$t('brandTagline')" large />
           </div>
           <div class="auth__intro-body">
             <div class="auth__eyebrow">{{ $t('automationWorkspace') }}</div>

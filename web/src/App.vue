@@ -120,7 +120,7 @@
         :aria-label="$t('uiTExecHome')"
         data-testid="sidebar-home"
       >
-        <BrandLogo :dark="darkMode" :compact="navMini" :tagline="$t('brandTagline')" />
+        <BrandLogo :compact="navMini" :tagline="$t('brandTagline')" />
       </router-link>
       <v-menu bottom max-width="235" max-height="100%" v-if="navigationProject">
         <template v-slot:activator="{ on, attrs }">

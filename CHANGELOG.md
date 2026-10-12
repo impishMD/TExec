@@ -4,7 +4,7 @@
 
 - Add ten appearance palettes and three higher-contrast options, each with light and dark variants.
 - Configure the global default in General settings and save personal overrides under Account → Appearance.
-- Apply palettes to login, navigation, controls, charts and workflows while keeping the existing light/dark switch.
+- Apply palettes to the TExec logo and wordmark, login, navigation, controls, charts and workflows while keeping the existing light/dark switch.
 
 ## v1.3.0
 
