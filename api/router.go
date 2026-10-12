@@ -155,6 +155,8 @@ func Route(
 	publicAPIRouter := r.PathPrefix(webPath + "api").Subrouter()
 	publicAPIRouter.Use(StoreMiddleware, JSONMiddleware)
 
+	publicAPIRouter.HandleFunc("/appearance", getAppearance).Methods("GET", "HEAD")
+
 	publicAPIRouter.HandleFunc("/auth/login", login).Methods("GET", "POST")
 	publicAPIRouter.HandleFunc("/auth/verify", verifySession).Methods("POST")
 	publicAPIRouter.HandleFunc("/auth/recovery", recoverySession).Methods("POST")

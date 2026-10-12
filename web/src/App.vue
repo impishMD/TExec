@@ -1,5 +1,7 @@
 <template>
-  <v-app v-if="state === 'success'" class="app texec-app">
+  <v-app v-if="state === 'success'" class="app texec-app"
+    :style="appearanceVariables" :data-theme="effectiveTheme"
+    :class="{ 'texec-high-contrast': highContrast }">
     <YesNoDialog
       :title="$t('projectRestoreResult')"
       v-model="restoreProjectResultDialog"
@@ -118,7 +120,7 @@
         :aria-label="$t('uiTExecHome')"
         data-testid="sidebar-home"
       >
-        <BrandLogo :dark="darkMode" :compact="navMini" :tagline="$t('brandTagline')" />
+        <BrandLogo :compact="navMini" :tagline="$t('brandTagline')" />
       </router-link>
       <v-menu bottom max-width="235" max-height="100%" v-if="navigationProject">
         <template v-slot:activator="{ on, attrs }">
@@ -374,6 +376,11 @@
                 <v-list-item-content>
                   {{ $t('editAccount') }}
                 </v-list-item-content>
+              </v-list-item>
+
+              <v-list-item key="appearance" to="/appearance" data-testid="sidebar-appearance">
+                <v-list-item-icon><v-icon>mdi-palette-outline</v-icon></v-list-item-icon>
+                <v-list-item-content>{{ $t('appearance') }}</v-list-item-content>
               </v-list-item>
 
               <v-list-item key="tokens" to="/tokens" data-testid="sidebar-tokens">
@@ -732,6 +739,10 @@ html.WorkflowEditor-html body {
 </style>
 
 <script>
+import {
+  applyTheme, themeVariables, resolveTheme, themeById, personalThemeFromOptions,
+} from '@/lib/appearance';
+import { applyFavicon, themeFavicon } from '@/lib/favicon';
 import DisplayLabelsMixin from '@/components/DisplayLabelsMixin';
 import axios from 'axios';
 import { getErrorMessage } from '@/lib/error';
@@ -804,6 +815,8 @@ export default {
       taskId: null,
       template: null,
       darkMode: this.$vuetify.theme.dark,
+      globalTheme: 'texec',
+      personalTheme: '',
       unpinnedNavKeys: [],
       showMoreToggle: false,
       navEditMode: false,
@@ -811,6 +824,14 @@ export default {
   },
 
   watch: {
+    favicon: {
+      immediate: true,
+      handler: applyFavicon,
+    },
+    effectiveTheme: {
+      immediate: true,
+      handler(id) { applyTheme(this.$vuetify, id); },
+    },
     async projects(val) {
       if (
         val.length === 0
@@ -873,6 +894,10 @@ export default {
   },
 
   computed: {
+    favicon() { return themeFavicon(this.effectiveTheme, this.darkMode); },
+    effectiveTheme() { return resolveTheme(this.user ? this.personalTheme : '', this.globalTheme); },
+    appearanceVariables() { return themeVariables(this.effectiveTheme, this.darkMode); },
+    highContrast() { return themeById(this.effectiveTheme).accessible; },
     showNavigation() {
       return !!this.user && this.$route.path !== '/auth/login'
         && !this.$route.path.startsWith('/accept-invite/');
@@ -1031,6 +1056,7 @@ export default {
 
   async created() {
     try {
+      await this.loadServerAppearance();
       await this.loadData();
       this.state = 'success';
     } catch (err) {
@@ -1055,8 +1081,12 @@ export default {
   },
 
   mounted() {
+    EventBus.$on('i-appearance', this.onAppearanceSaved);
+    window.addEventListener('focus', this.loadServerAppearance);
     EventBus.$on('i-server-settings', (settings) => {
+      this.globalTheme = settings.appearance_theme || 'texec';
       if (this.systemInfo) {
+        this.$set(this.systemInfo, 'appearance_theme', this.globalTheme);
         this.systemInfo.use_remote_runner = settings.use_remote_runner;
         if (settings.schedule_timezone) {
           this.systemInfo.schedule_timezone = settings.schedule_timezone.value;
@@ -1192,7 +1222,22 @@ export default {
     });
   },
 
+  beforeDestroy() {
+    EventBus.$off('i-appearance', this.onAppearanceSaved);
+    window.removeEventListener('focus', this.loadServerAppearance);
+  },
+
   methods: {
+    onAppearanceSaved(id) { this.personalTheme = id; },
+    async loadServerAppearance() {
+      try {
+        const { data } = await axios.get('/api/appearance');
+        this.globalTheme = themeById(data.theme).id;
+        if (this.systemInfo) this.$set(this.systemInfo, 'appearance_theme', this.globalTheme);
+      } catch {
+        // Branding failures must not prevent login; keep the last/default palette.
+      }
+    },
     showNewProjectDialogue(projectType = '') {
       this.newProjectDialog = true;
       this.newProjectType = projectType;
@@ -1240,6 +1285,8 @@ export default {
           responseType: 'json',
         })
       ).data;
+
+      this.personalTheme = personalThemeFromOptions(options);
 
       if (options['nav.unpinnedItems'] != null) {
         try {
@@ -1471,6 +1518,8 @@ export default {
         socket.setSessionActive(false);
         socket.stop();
         this.user = null;
+        this.personalTheme = '';
+        await this.loadServerAppearance();
         this.userRole = null;
         this.roleProjectId = null;
 

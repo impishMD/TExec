@@ -1,0 +1,78 @@
+// Palette variables are set on v-app, including its detached dialogs and menus.
+.v-application.texec-app {
+  .v-sheet, .v-card, .v-list, .v-tabs-items, .v-expansion-panel, .v-data-table {
+    background-color: var(--texec-surface);
+    color: var(--texec-text);
+  }
+  .v-toolbar, .v-tabs-bar { background-color: transparent; color: var(--texec-text); }
+  .v-sheet--outlined { border-color: var(--texec-border); }
+  .v-card__text, .v-card__subtitle, .v-list-item, .v-input, .v-text-field input,
+  .v-text-field textarea, .v-select__selection, .v-expansion-panel-header {
+    color: var(--texec-text);
+  }
+  .v-label, .v-messages, .v-subheader, .v-list-item__subtitle,
+  .v-select__selection--disabled { color: var(--texec-muted); }
+  .text--primary { color: var(--texec-text) !important; }
+  .text--secondary { color: var(--texec-muted) !important; }
+  .v-icon { color: var(--texec-muted); }
+  .v-list-item--active { color: var(--texec-accent); }
+  .v-input input::placeholder, .v-input textarea::placeholder { color: var(--texec-muted); opacity: 1; }
+  .v-input--is-disabled { opacity: .55; }
+  .v-input--selection-controls__ripple:focus-visible { outline: 2px solid var(--texec-accent); }
+  .v-chip:not(.v-chip--outlined):not(.primary):not(.success):not(.error):not(.warning):not(.info) {
+    background-color: var(--texec-soft);
+    color: var(--texec-text);
+  }
+  .v-btn.primary:not(.v-btn--text):not(.v-btn--outlined),
+  .v-chip.primary:not(.v-chip--outlined) { color: var(--texec-on-primary); }
+  @each $status in success, error, warning, info {
+    .v-btn.#{$status}:not(.v-btn--text):not(.v-btn--outlined),
+    .v-chip.#{$status}:not(.v-chip--outlined),
+    .v-snack__wrapper.#{$status},
+    .v-alert.#{$status}:not(.v-alert--text):not(.v-alert--outlined) {
+      color: var(--texec-on-#{$status});
+    }
+  }
+  .v-btn .v-icon, .v-chip .v-icon, .v-snack__wrapper .v-icon,
+  .v-alert:not(.v-alert--text):not(.v-alert--outlined) .v-icon { color: inherit; }
+  .v-snack__wrapper .v-btn--text { color: inherit; }
+  .WorkflowEditor__sideToggle { background: var(--texec-surface); }
+  .v-text-field--filled > .v-input__control > .v-input__slot { background: var(--texec-soft); }
+  .v-text-field--solo > .v-input__control > .v-input__slot { background: var(--texec-surface); }
+  .v-data-table > .v-data-table__wrapper > table > tbody > tr:hover { background: var(--texec-soft); }
+  .v-data-table td, .v-data-table th { border-color: var(--texec-border) !important; }
+
+  // Use the same surfaces and semantic colors on the workflow canvas.
+  .WorkflowGraph {
+    --wf-surface: var(--texec-surface);
+    --wf-text: var(--texec-text);
+    --wf-text2: var(--texec-muted);
+    --wf-divider: var(--texec-border);
+    --wf-divider-strong: var(--texec-muted);
+    --wf-dot: var(--texec-border);
+    --wf-tile-bg: var(--texec-soft);
+    --wf-primary: var(--texec-accent);
+    --wf-primary-ring: var(--texec-accent-soft);
+    --wf-success: var(--texec-success);
+    --wf-error: var(--texec-error);
+    --wf-warning: var(--texec-warning);
+    --wf-always: var(--texec-muted);
+    --wf-note-bg: var(--texec-soft);
+    --wf-note-border: var(--texec-warning);
+    --wf-note-text: var(--texec-text);
+    --wf-shadow: var(--texec-shadow);
+    --wf-shadow-hover: var(--texec-shadow);
+  }
+
+  &.texec-high-contrast {
+    a:not(.v-btn):not(.v-list-item):not(.v-tab) { text-decoration: underline; }
+    :focus-visible { outline: 3px solid var(--texec-accent); outline-offset: 3px; }
+    .v-text-field--outlined fieldset { border-width: 2px; }
+    .v-input--is-focused .v-input__slot { outline: 2px solid var(--texec-accent); outline-offset: 3px; }
+    .v-btn--outlined, .v-chip--outlined, .v-sheet--outlined { border-width: 2px; }
+    .v-tab--active { text-decoration: underline; text-underline-offset: 5px; }
+    .v-input--switch__track { opacity: .65; }
+    .v-list-item--active, .texec-nav-active { box-shadow: inset 3px 0 0 var(--texec-accent); }
+    .v-data-table-header th { font-weight: 700 !important; }
+  }
+}

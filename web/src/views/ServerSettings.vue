@@ -16,6 +16,10 @@
       </v-btn>
       <v-card v-if="settings" outlined class="pa-6">
         <v-form @submit.prevent="save">
+          <h2 class="text-h6 mb-2">{{ $t('appearance') }}</h2>
+          <p class="text-body-2 text--secondary">{{ $t('appearanceGlobalHint') }}</p>
+          <ThemePicker v-model="appearanceTheme" :disabled="saving" />
+          <v-divider class="my-6" />
           <v-combobox
             v-model="scheduleTimezone"
             :items="timezones"
@@ -73,21 +77,25 @@
 
 <script>
 import axios from 'axios';
+import ThemePicker from '@/components/ThemePicker.vue';
 import EventBus from '@/event-bus';
 import { getErrorMessage } from '@/lib/error';
 
 export default {
+  components: { ThemePicker },
   data: () => ({
     settings: null,
     useRemoteRunner: false,
     scheduleTimezone: '',
+    appearanceTheme: 'texec',
     loading: true,
     saving: false,
     error: '',
   }),
   computed: {
     dirty() {
-      return this.settings && (this.useRemoteRunner !== this.settings.use_remote_runner
+      return this.settings && (this.appearanceTheme !== (this.settings.appearance_theme || 'texec')
+        || this.useRemoteRunner !== this.settings.use_remote_runner
         || (!this.timezoneLocked
           && (this.scheduleTimezone || '') !== this.settings.schedule_timezone.saved));
     },
@@ -109,6 +117,7 @@ export default {
     apply(settings) {
       this.settings = settings;
       this.useRemoteRunner = settings.use_remote_runner;
+      this.appearanceTheme = settings.appearance_theme || 'texec';
       this.scheduleTimezone = this.timezoneLocked
         ? settings.schedule_timezone.value : settings.schedule_timezone.saved;
       EventBus.$emit('i-server-settings', settings);
@@ -132,6 +141,7 @@ export default {
       try {
         const data = {
           use_remote_runner: this.useRemoteRunner,
+          appearance_theme: this.appearanceTheme,
         };
         if (!this.timezoneLocked) data.schedule_timezone = this.scheduleTimezone || '';
         this.apply((await axios.put('/api/settings', data)).data);
@@ -147,5 +157,5 @@ export default {
 </script>
 
 <style scoped>
-.server-settings-page { padding-bottom: 32px; }
+.server-settings-page { max-width: 1120px; padding-bottom: 32px; }
 </style>

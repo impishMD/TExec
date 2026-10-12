@@ -7,6 +7,7 @@ import (
 	"github.com/impishMD/TExec/db"
 	"github.com/impishMD/TExec/services/audit"
 	"github.com/impishMD/TExec/services/server"
+	"github.com/impishMD/TExec/util/appearance"
 )
 
 func setOption(w http.ResponseWriter, r *http.Request) {
@@ -38,6 +39,10 @@ func setOption(w http.ResponseWriter, r *http.Request) {
 			helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 			return
 		}
+	}
+	if option.Key == appearance.ServerOption && !appearance.ValidTheme(option.Value) {
+		helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "unknown appearance theme"})
+		return
 	}
 	err := helpers.Store(r).SetOption(option.Key, option.Value)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 const RemoteRunnersEnabledOption = "server.remote_runners.enabled"
 
 type ServerSettings struct {
+	AppearanceTheme  string                   `json:"appearance_theme"`
 	UseRemoteRunner  bool                     `json:"use_remote_runner"`
 	ScheduleTimezone ScheduleTimezoneSettings `json:"schedule_timezone"`
 }
@@ -25,7 +26,11 @@ func GetServerSettings(store settingsReader) (ServerSettings, error) {
 	if err != nil {
 		return ServerSettings{}, err
 	}
-	settings := ServerSettings{ScheduleTimezone: timezone}
+	theme, err := GetAppearanceTheme(store)
+	if err != nil {
+		return ServerSettings{}, err
+	}
+	settings := ServerSettings{ScheduleTimezone: timezone, AppearanceTheme: theme}
 	value, err := store.GetOption(RemoteRunnersEnabledOption)
 	if errors.Is(err, db.ErrNotFound) {
 		return settings, nil

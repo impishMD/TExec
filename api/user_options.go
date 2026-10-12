@@ -8,13 +8,15 @@ import (
 
 	"github.com/impishMD/TExec/api/helpers"
 	"github.com/impishMD/TExec/db"
+	"github.com/impishMD/TExec/util/appearance"
 )
 
 // allowedUserOptionKeys lists the suffixes a user is allowed to store via the
 // per-user options API. The handler always namespaces them with the user ID.
 var allowedUserOptionKeys = map[string]bool{
-	"lang":              true,
-	"nav.unpinnedItems": true,
+	appearance.UserOption: true,
+	"lang":                true,
+	"nav.unpinnedItems":   true,
 }
 
 func userOptionKey(userID int, suffix string) string {
@@ -63,6 +65,13 @@ func setUserOption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if opt.Key == appearance.UserOption {
+		var id *string
+		if err := json.Unmarshal([]byte(opt.Value), &id); err != nil || id == nil || (*id != "" && !appearance.ValidTheme(*id)) {
+			helpers.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "appearance theme must be a known theme ID or an empty string"})
+			return
+		}
+	}
 	err := helpers.Store(r).SetOption(userOptionKey(user.ID, opt.Key), opt.Value)
 	if err != nil {
 		helpers.WriteJSON(w, http.StatusInternalServerError, map[string]string{
