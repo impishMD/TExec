@@ -23,6 +23,31 @@ describe('Task statistics daily series', () => {
     ]);
   });
 
+  it('keeps counts from PostgreSQL/MySQL DATE values serialized as timestamps', () => {
+    const rows = [
+      { date: '2026-10-11T00:00:00Z', count_by_status: { success: 3, error: 2, stopped: 1 } },
+      { date: '2026-10-10T00:00:00Z', count_by_status: { success: 1 } },
+    ];
+    const result = taskStats(rows, '2026-10-09', '2026-10-11');
+    expect(result.map((row) => row.count_by_status)).to.deep.equal([
+      { success: 0, error: 0, stopped: 0 },
+      { success: 1, error: 0, stopped: 0 },
+      { success: 3, error: 2, stopped: 1 },
+    ]);
+    expect(rows[0].date).to.equal('2026-10-11T00:00:00Z');
+  });
+
+  it('preserves the database calendar day instead of shifting midnight by timezone', () => {
+    const result = taskStats([
+      { date: '2026-10-10T00:00:00+03:00', count_by_status: { success: 2 } },
+      { date: '2026-10-11T00:00:00-07:00', count_by_status: { error: 1 } },
+    ], '2026-10-10', '2026-10-11');
+    expect(result).to.deep.equal([
+      { date: '2026-10-10', count_by_status: { success: 2, error: 0, stopped: 0 } },
+      { date: '2026-10-11', count_by_status: { success: 0, error: 1, stopped: 0 } },
+    ]);
+  });
+
   it('fills gaps independently of response order and ignores dates outside the range', () => {
     const result = taskStats([
       { date: '2026-10-09', count_by_status: { error: 99 } },

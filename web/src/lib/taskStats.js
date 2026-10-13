@@ -1,7 +1,8 @@
-// API dates are UTC calendar days. Keep each day unique and ordered so Chart.js
-// does not overwrite a day's stack with a second, empty point for that date.
+// SQL DATE values reach the API as YYYY-MM-DD (SQLite) or RFC3339 timestamps
+// (PostgreSQL/MySQL). Keep the calendar day already grouped by the database:
+// converting midnight to another timezone could move its counts to another day.
 export default function taskStats(rows, startDate, endDate) {
-  const byDate = new Map(rows.map((row) => [row.date, row.count_by_status]));
+  const byDate = new Map(rows.map((row) => [row.date.slice(0, 10), row.count_by_status]));
   const result = [];
   const date = new Date(`${startDate}T00:00:00Z`);
   const end = new Date(`${endDate}T00:00:00Z`);

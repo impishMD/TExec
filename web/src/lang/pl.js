@@ -410,6 +410,8 @@ export default {
   newTemplate2: 'Nowy szablon',
   deleteTemplate: 'Usuń szablon',
   playbook: 'Playbook',
+  templateScript: 'Skrypt',
+  templateDirectory: 'Katalog',
   email: 'Email',
   adminUser: 'Użytkownik administratora',
   sendAlerts: 'Wyślij alerty',

@@ -159,9 +159,12 @@ export const DEFAULT_APPS = Object.keys(APP_ICONS);
 const BASE_FIELDS = {
   playbook: {
     label: 'playbookFilename',
+    title: 'playbook',
+    icon: 'mdi-book-play',
   },
   inventory: {
     label: 'inventory2',
+    title: 'inventory',
   },
   repository: {
     label: 'repository',
@@ -231,12 +234,15 @@ export const TERRAFORM_FIELDS = {
   ...BASE_FIELDS,
   playbook: {
     label: 'subdirectoryPathOptional',
+    title: 'templateDirectory',
+    icon: 'mdi-folder-outline',
     optional: true,
     // The field names a directory, so the picker lists one level at a time.
     directories: true,
   },
   inventory: {
     label: 'workspaceOptional',
+    title: 'uiWorkspace',
   },
   auto_approve: {
     label: 'auto_approve',
@@ -262,6 +268,8 @@ export const UNKNOWN_APP_FIELDS = {
   ...BASE_FIELDS,
   playbook: {
     label: 'scriptFilename',
+    title: 'templateScript',
+    icon: 'mdi-script-text-outline',
   },
   inventory: undefined,
 };

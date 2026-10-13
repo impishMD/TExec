@@ -5,12 +5,14 @@
         <v-list subheader>
           <v-list-item>
             <v-list-item-icon>
-              <v-icon>mdi-book-play</v-icon>
+              <v-icon>{{ fields.playbook.icon }}</v-icon>
             </v-list-item-icon>
 
             <v-list-item-content>
-              <v-list-item-title>{{ $t('playbook') }}</v-list-item-title>
-              <v-list-item-subtitle>{{ template.playbook }}</v-list-item-subtitle>
+              <v-list-item-title>{{ $t(fields.playbook.title) }}</v-list-item-title>
+              <v-list-item-subtitle>
+                {{ template.playbook || (fields.playbook.directories ? '.' : '—') }}
+              </v-list-item-subtitle>
             </v-list-item-content>
           </v-list-item>
         </v-list>
@@ -30,7 +32,7 @@
           </v-list-item>
         </v-list>
       </v-col>
-      <v-col>
+      <v-col v-if="needField('inventory')">
         <v-list subheader>
           <v-list-item>
             <v-list-item-icon>
@@ -38,7 +40,7 @@
             </v-list-item-icon>
 
             <v-list-item-content>
-              <v-list-item-title>{{ $t('inventory') }}</v-list-item-title>
+              <v-list-item-title>{{ $t(fields.inventory.title) }}</v-list-item-title>
               <v-list-item-subtitle>
                 {{ (inventory.find((x) => x.id === template.inventory_id) || {name: '—'}).name }}
               </v-list-item-subtitle>
@@ -90,9 +92,11 @@ import {
   TEMPLATE_TYPE_TITLES,
 } from '@/lib/constants';
 import TaskStats from '@/components/TaskStats.vue';
+import AppFieldsMixin from '@/components/AppFieldsMixin';
 
 export default {
   components: { TaskStats },
+  mixins: [AppFieldsMixin],
 
   props: {
     template: Object,
@@ -124,6 +128,10 @@ export default {
   },
 
   computed: {
+    app() {
+      return this.template.app || '';
+    },
+
     environmentNames() {
       if (!this.template || !Array.isArray(this.template.environment_ids)
           || this.template.environment_ids.length === 0) {

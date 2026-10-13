@@ -410,6 +410,8 @@ export default {
   newTemplate2: 'Nueva Plantilla',
   deleteTemplate: 'Eliminar plantilla',
   playbook: 'Playbook',
+  templateScript: 'Script',
+  templateDirectory: 'Directorio',
   email: 'Correo Electrónico',
   adminUser: 'Usuario Administrador',
   sendAlerts: 'Enviar alertas',

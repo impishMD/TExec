@@ -410,6 +410,8 @@ export default {
   newTemplate2: '새 템플릿',
   deleteTemplate: '템플릿 삭제',
   playbook: '플레이북',
+  templateScript: '스크립트',
+  templateDirectory: '디렉터리',
   email: '이메일',
   adminUser: '관리자 사용자',
   sendAlerts: '알림 전송',
