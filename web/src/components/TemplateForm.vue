@@ -213,7 +213,7 @@
             :items="playbooks || []"
             :label="fieldLabel('playbook')"
             :rules="
-              isFieldRequired('playbook') ? [(v) => !!v || $t('playbook_filename_required')] : []
+              isFieldRequired('playbook') ? [(v) => !!v || $t('required')] : []
             "
             outlined
             dense

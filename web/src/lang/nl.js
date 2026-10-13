@@ -410,6 +410,8 @@ export default {
   newTemplate2: 'Nieuw Sjabloon',
   deleteTemplate: 'Sjabloon Verwijderen',
   playbook: 'Playbook',
+  templateScript: 'Script',
+  templateDirectory: 'Map',
   email: 'E-mail',
   adminUser: 'Admin gebruiker',
   sendAlerts: 'Stuur waarschuwingen',

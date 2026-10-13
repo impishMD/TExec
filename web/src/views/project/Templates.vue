@@ -517,12 +517,12 @@ export default {
           sortable: false,
         },
         {
-          text: this.$i18n.t('playbook'),
+          text: this.$i18n.t('path'),
           value: 'playbook',
           sortable: false,
         },
         {
-          text: this.$i18n.t('inventory'),
+          text: `${this.$i18n.t('inventory')} / ${this.$i18n.t('uiWorkspace')}`,
           value: 'inventory_id',
           sortable: false,
         },

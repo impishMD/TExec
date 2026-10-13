@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Fixed empty task status charts on PostgreSQL/MySQL by matching timestamp-formatted API dates to their calendar day in both project and template statistics.
+- Corrected template detail labels for scripts, infrastructure directories and workspaces; hide inventories for applications that do not use them.
 
 ## v1.4.0
 

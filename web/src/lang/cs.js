@@ -410,6 +410,8 @@ export default {
   newTemplate2: 'Nová šablona',
   deleteTemplate: 'Odstranit šablonu',
   playbook: 'Playbook',
+  templateScript: 'Skript',
+  templateDirectory: 'Adresář',
   email: 'E-mail',
   adminUser: 'Administrátor',
   sendAlerts: 'Odesílat upozornění',
