@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed empty task status charts on PostgreSQL/MySQL by matching timestamp-formatted API dates to their calendar day in both project and template statistics.
+
 ## v1.4.0
 
 - Added ten appearance palettes and three higher-contrast options, each with light and dark variants.
