@@ -8,6 +8,33 @@ use `v<major>.<minor>.<patch>`. The default branch is `main`.
 Choose an unused version and tag for every release. Container repositories are
 `impishmd/texec` and `ghcr.io/impishmd/texec`.
 
+## Release relay
+
+The code phrase **«Релиз-эстафета»** (release relay) means: prepare and start a release,
+then hand the remaining steps to the owner without waiting for GitHub Actions.
+First state the selected version and planned actions, then proceed:
+
+1. Integrate ready fixes and features through PRs into `dev`; never push directly to `dev`.
+   In this mode the owner explicitly permits merging without waiting for CI when repository
+   rules allow a normal merge. Do not bypass branch protection; if it blocks the merge,
+   provide continuation commands starting at that stage.
+2. Create `release/<version>` from current `dev`; update application/chart versions,
+   changelog, EN/RU application and chart release notes, and installation examples.
+   Check version and documentation consistency. Do not repeat completed code or local
+   container checks unless further changes warrant it.
+3. Push the release branch and application tag `v<version>` pointing to the same commit.
+   Release waits for that commit's branch CI itself; failed CI blocks publication.
+   Open a PR from the release branch back into `dev` for release preparation changes.
+4. Stop after pushing, without waiting for CI or rerunning jobs. Provide PR/Actions links
+   and ready-to-run commands for the remaining steps.
+5. The owner checks CI, Packages, Helm CI and Release. After the image is published,
+   push `chart-v<chart-version>` at the same commit, check Helm Release/Pages, merge
+   the release branch into `main` and its PR back into `dev`.
+   Use `[skip ci]` for the `main` merge only if it introduces no code changes or conflict resolutions.
+
+Do not push the chart tag together with the application tag: Helm Release requires the
+published image. Both tags are immutable. Workflows use the committed release notes.
+
 ## Prepare
 
 Use `dev` for day-to-day integration:
