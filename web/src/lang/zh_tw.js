@@ -410,6 +410,8 @@ export default {
   newTemplate2: '新增範本',
   deleteTemplate: '刪除範本',
   playbook: 'Playbook',
+  templateScript: '指令碼',
+  templateDirectory: '目錄',
   email: '電子郵件',
   adminUser: '管理員使用者',
   sendAlerts: '發送警報',

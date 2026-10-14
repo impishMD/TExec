@@ -410,6 +410,8 @@ export default {
   newTemplate2: '新模板',
   deleteTemplate: '删除模板',
   playbook: '剧本',
+  templateScript: '脚本',
+  templateDirectory: '目录',
   email: '电子邮件',
   adminUser: '管理员用户',
   sendAlerts: '发送警报',

@@ -411,6 +411,8 @@ export default {
   newTemplate2: 'New Template',
   deleteTemplate: 'Delete template',
   playbook: 'Playbook',
+  templateScript: 'Script',
+  templateDirectory: 'Directory',
   email: 'Email',
   adminUser: 'Admin user',
   sendAlerts: 'Send alerts',

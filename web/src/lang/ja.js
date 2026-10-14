@@ -410,6 +410,8 @@ export default {
   newTemplate2: '新しいテンプレート',
   deleteTemplate: 'テンプレートを削除',
   playbook: 'プレイブック',
+  templateScript: 'スクリプト',
+  templateDirectory: 'ディレクトリ',
   email: 'メール',
   adminUser: '管理者ユーザー',
   sendAlerts: 'アラートを送信',

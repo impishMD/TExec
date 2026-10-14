@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v1.4.1
+
+- Fixed empty task status charts on PostgreSQL/MySQL by matching timestamp-formatted API dates to their calendar day in both project and template statistics.
+- Corrected template detail labels for scripts, infrastructure directories and workspaces; hide inventories for applications that do not use them.
+- Helm chart 1.4.1 deploys TExec v1.4.1 with compatible existing values.
+
+[English release notes](release-notes/en/v1.4.1.md) · [Русский](release-notes/ru/v1.4.1.md)
+
 ## v1.4.0
 
 - Added ten appearance palettes and three higher-contrast options, each with light and dark variants.

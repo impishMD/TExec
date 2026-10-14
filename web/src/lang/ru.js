@@ -411,6 +411,8 @@ export default {
   newTemplate2: 'Новый шаблон',
   deleteTemplate: 'Удалить шаблон',
   playbook: 'Плейбук',
+  templateScript: 'Скрипт',
+  templateDirectory: 'Каталог',
   email: 'Электронная почта',
   adminUser: 'Администратор',
   sendAlerts: 'Отправить оповещения',
