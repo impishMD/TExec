@@ -1,6 +1,6 @@
 {
   "name": "texec-web",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "private": true,
   "scripts": {
     "sync:api-docs": "node -e \"require('fs').copyFileSync('../api-docs.yml', 'public/swagger/api-docs.yml')\"",
