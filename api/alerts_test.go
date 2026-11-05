@@ -54,17 +54,22 @@ func TestAlertSettingsPermissionsAndWriteOnlySecrets(t *testing.T) {
 		calls++
 		require.Equal(t, "api.telegram.org", r.URL.Host)
 		require.Equal(t, "/bot123:global-secret/sendMessage", r.URL.Path)
-		var body map[string]string
+		var body map[string]any
 		require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
 		require.Equal(t, "@preview", body["chat_id"])
-		require.Contains(t, strings.ToLower(body["text"]), "тестовое оповещение")
+		if calls == 1 {
+			require.NotContains(t, body, "message_thread_id")
+		} else {
+			require.Equal(t, float64(73), body["message_thread_id"])
+		}
+		require.Contains(t, strings.ToLower(body["text"].(string)), "тестовое оповещение")
 		return &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(`{"ok":true}`))}, nil
 	})
 	w = request(true, 0, 0, "POST", `{"chat_id":"@preview","locale":"ru"}`)
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	require.JSONEq(t, `{"sent":true}`, w.Body.String())
 	for _, admin := range []bool{false, true} {
-		w = request(admin, db.CanUpdateProject, project.ID, "PUT", `{"enabled":true,"chat_id":"-100123","token":"456:project-secret"}`)
+		w = request(admin, db.CanUpdateProject, project.ID, "PUT", `{"enabled":true,"chat_id":"-100123","message_thread_id":42,"token":"456:project-secret"}`)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.NotContains(t, w.Body.String(), "project-secret")
 		w = request(admin, db.CanUpdateProject, project.ID, "GET", "")
@@ -72,17 +77,24 @@ func TestAlertSettingsPermissionsAndWriteOnlySecrets(t *testing.T) {
 		var body map[string]any
 		require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
 		require.Equal(t, true, body["has_token"])
+		require.Equal(t, float64(42), body["message_thread_id"])
 		require.Equal(t, true, body["global_token_configured"])
 		require.NotContains(t, body, "token")
 		require.NotContains(t, body, "secret")
 		before, err := store.GetAlertChannel(project.ID, "telegram")
 		require.NoError(t, err)
-		w = request(admin, db.CanUpdateProject, project.ID, "POST", `{"enabled":true,"chat_id":"@preview","token":"","locale":"ru"}`)
+		w = request(admin, db.CanUpdateProject, project.ID, "POST", `{"enabled":true,"chat_id":"@preview","message_thread_id":73,"token":"","locale":"ru"}`)
 		require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 		require.JSONEq(t, `{"sent":true}`, w.Body.String())
 		after, err := store.GetAlertChannel(project.ID, "telegram")
 		require.NoError(t, err)
 		require.Equal(t, before, after, "testing must not save the submitted chat or remove the override")
+	}
+	for _, value := range []string{"-1", "2147483648", "1.5", `"42"`} {
+		for _, method := range []string{"PUT", "POST"} {
+			body := `{"enabled":true,"chat_id":"-100123","message_thread_id":` + value + `}`
+			require.Equal(t, http.StatusBadRequest, request(true, db.CanUpdateProject, project.ID, method, body).Code)
+		}
 	}
 	require.Equal(t, 3, calls)
 	w = request(true, 0, 0, "PUT", `{"token":"123:secret/bad"}`)

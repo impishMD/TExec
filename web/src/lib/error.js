@@ -2,6 +2,7 @@ import i18n from '@/plugins/i18';
 
 // Translate known form errors; preserve arbitrary backend/command diagnostics.
 const formErrors = {
+  'Enter a valid Telegram topic ID': 'alertsTopicInvalid',
   'invalid schedule timezone': 'workflowNotificationTimezoneInvalid',
   'schedule timezone is managed by environment or configuration': 'scheduleTimezoneLockedError',
   'Telegram notifications are disabled for this project': 'workflowNotificationDisabled',

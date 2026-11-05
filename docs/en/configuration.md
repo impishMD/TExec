@@ -126,6 +126,18 @@ Enable Telegram, enter the destination Chat ID and save. Telegram starts disable
 for every project. The bot needs permission to send messages to that chat.
 Template options that suppress success or failure alerts still apply.
 
+For a group with forum topics, enter the optional **Topic ID** below Chat ID in
+**General**. This is Telegram's numeric `message_thread_id`, not the topic name
+or a second Chat ID. Leave it empty for the General topic or a chat without topics.
+The bot must be able to send messages to the selected topic. Task results, workflow
+notifications and approval notifications all use the project's topic. An invalid
+or unavailable topic causes a delivery error; messages are not redirected to another topic.
+
+The test uses the topic currently shown in the form, including unsaved changes.
+Global bot settings also offer an optional test Topic ID; neither test destination
+is saved globally. Clearing and saving the project's Topic ID removes topic routing.
+Existing projects keep their previous behavior without a database migration.
+
 **Use the global bot token** is selected by default. Clear it to save a separate
 bot token for this project; select it again to remove the override. Saved tokens
 are never returned by the API or displayed. An empty replacement field keeps an

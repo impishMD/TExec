@@ -35,6 +35,19 @@
             class="mb-5"
             data-testid="alerts-chat-id"
           />
+          <v-text-field
+            v-model="messageThreadId"
+            :label="$t('alertsTopicId')"
+            :hint="$t('alertsTopicHint')"
+            persistent-hint
+            :disabled="!enabled || busy"
+            :rules="enabled ? [topicRule] : []"
+            inputmode="numeric"
+            outlined
+            dense
+            class="mb-5"
+            data-testid="alerts-topic-id"
+          />
           <v-checkbox
             v-model="useGlobalToken"
             :label="$t('alertsUseGlobalToken')"
@@ -87,6 +100,10 @@
         </p>
         <v-text-field v-if="!projectId" v-model="testChatId" :label="$t('alertsTestChat')"
           :disabled="busy" outlined dense class="mt-5" data-testid="alerts-test-chat" />
+        <v-text-field v-if="!projectId" v-model="testMessageThreadId"
+          :label="$t('alertsTopicId')" :hint="$t('alertsTopicHint')" persistent-hint
+          :disabled="busy" :rules="[topicRule]" inputmode="numeric"
+          outlined dense class="mt-5" data-testid="alerts-test-topic" />
       </div>
       <div v-if="projectId && templates" v-show="channelTab === 'templates'" class="px-6 pt-5 pb-2">
         <ProjectAlertTemplates v-model="templates" :project-id="projectId"
@@ -140,10 +157,12 @@ export default {
       saving: false,
       testing: false,
       testChatId: '',
+      testMessageThreadId: '',
       testResult: null,
       settings: null,
       enabled: false,
       chatId: '',
+      messageThreadId: '',
       token: '',
       useGlobalToken: true,
       clearToken: false,
@@ -159,7 +178,8 @@ export default {
     busy() { return this.loading || this.saving || this.testing; },
     testInput() {
       return JSON.stringify([this.chatId, this.testChatId, this.token, this.useGlobalToken,
-        this.enabled, this.clearToken, this.templates, this.templateStatus]);
+        this.enabled, this.clearToken, this.templates, this.templateStatus,
+        this.messageThreadId, this.testMessageThreadId]);
     },
     url() {
       return this.projectId
@@ -173,6 +193,7 @@ export default {
       return this.settings && (this.token.trim() !== '' || this.clearToken
         || (this.projectId && (this.enabled !== this.settings.enabled
           || this.chatId !== this.settings.chat_id
+          || this.messageThreadId !== String(this.settings.message_thread_id || '')
           || this.useGlobalToken === this.settings.has_token
           || (this.enabled && this.templates && !this.settings.templates)
           || JSON.stringify(this.templates) !== JSON.stringify(this.originalTemplates))));
@@ -184,6 +205,11 @@ export default {
   },
   created() { this.load(); },
   methods: {
+    topicRule(value) {
+      const text = String(value ?? '').trim();
+      return text === '' || (/^[0-9]+$/.test(text) && Number(text) > 0
+        && Number(text) <= 2147483647) || this.$t('alertsTopicInvalid');
+    },
     reset() {
       this.apply(this.settings);
       this.error = '';
@@ -194,6 +220,7 @@ export default {
       this.settings = settings;
       this.enabled = settings.enabled;
       this.chatId = settings.chat_id;
+      this.messageThreadId = String(settings.message_thread_id || '');
       this.useGlobalToken = !settings.has_token;
       this.token = '';
       this.clearToken = false;
@@ -225,6 +252,9 @@ export default {
     },
     requestData() {
       const data = { enabled: this.enabled, chat_id: this.chatId };
+      if (this.projectId && this.topicRule(this.messageThreadId) === true) {
+        data.message_thread_id = Number(this.messageThreadId) || 0;
+      }
       if (this.projectId && this.useGlobalToken) data.token = '';
       else if (this.token.trim()) data.token = this.token.trim();
       else if (this.clearToken) data.token = '';
@@ -238,6 +268,7 @@ export default {
       if (!this.$refs.form.validate()) { this.channelTab = 'general'; return; }
       const data = this.requestData();
       data.chat_id = (this.projectId ? this.chatId : this.testChatId).trim();
+      if (!this.projectId) data.message_thread_id = Number(this.testMessageThreadId) || 0;
       if (!data.chat_id) {
         this.testResult = { ok: false, text: this.$t('alertsChatRequired') };
         return;
