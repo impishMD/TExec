@@ -56,6 +56,7 @@ describe('Telegram alert settings', () => {
     expect(wrapper.find('[data-testid="alerts-enable-telegram"]').attributes('disabled'))
       .to.equal(undefined);
     expect(wrapper.find('[data-testid="alerts-chat-id"]').attributes('disabled')).to.equal('disabled');
+    expect(wrapper.find('[data-testid="alerts-topic-id"]').attributes('disabled')).to.equal('disabled');
     expect(wrapper.find('[data-testid="alerts-save"]').attributes('disabled')).to.equal('disabled');
     await wrapper.setData({ enabled: true });
     expect(wrapper.find('[data-testid="alerts-chat-id"]').attributes('disabled')).to.equal(undefined);
@@ -163,6 +164,62 @@ describe('Telegram alert settings', () => {
     expect(wrapper.vm.error).to.equal('');
     expect(wrapper.vm.dirty).to.equal(false);
     expect(saved).to.equal(null);
+  });
+
+  it('persists, resets and clears the topic while tests use the unsaved destination', async () => {
+    await render({
+      enabled: true, chat_id: '-100123', message_thread_id: 42, has_token: true,
+    });
+    expect(wrapper.vm.messageThreadId).to.equal('42');
+    expect(wrapper.vm.dirty).to.equal(false);
+    await wrapper.get('[data-testid="alerts-topic-id"]').setValue('73');
+    expect(wrapper.vm.dirty).to.equal(true);
+    await wrapper.vm.testNotification();
+    expect(tested.data.message_thread_id).to.equal(73);
+    expect(saved).to.equal(null);
+    wrapper.vm.reset();
+    expect(wrapper.vm.messageThreadId).to.equal('42');
+    expect(wrapper.vm.testResult).to.equal(null);
+    await wrapper.setData({ messageThreadId: '73' });
+    await wrapper.vm.save();
+    expect(saved.data.message_thread_id).to.equal(73);
+    expect(wrapper.vm.dirty).to.equal(false);
+    await wrapper.setData({ messageThreadId: '' });
+    await wrapper.vm.save();
+    expect(saved.data.message_thread_id).to.equal(0);
+    expect(wrapper.vm.messageThreadId).to.equal('');
+  });
+
+  ['0', '-1', '1.5', '1e2', 'abc', '2147483648'].forEach((value) => {
+    it(`rejects topic ${value} before saving or sending`, async () => {
+      await render({ enabled: true, chat_id: '-100123', message_thread_id: 42 });
+      await wrapper.setData({ messageThreadId: value });
+      await wrapper.vm.save();
+      await wrapper.vm.testNotification();
+      expect(saved).to.equal(null);
+      expect(tested).to.equal(null);
+    });
+  });
+
+  it('allows disabling a channel even with an invalid unsaved topic', async () => {
+    await render({ enabled: true, chat_id: '-100123', message_thread_id: 42 });
+    await wrapper.setData({ enabled: false, messageThreadId: '-1' });
+    expect(wrapper.find('[data-testid="alerts-topic-id"]').attributes('disabled')).to.equal('disabled');
+    await wrapper.vm.save();
+    expect(saved.data.enabled).to.equal(false);
+    expect(saved.data).not.to.have.property('message_thread_id');
+  });
+
+  it('uses a global test topic without storing that destination with the token', async () => {
+    await render({}, 0);
+    await wrapper.setData({ token: '123:token', testChatId: '-100123', testMessageThreadId: '42' });
+    await wrapper.vm.testNotification();
+    expect(tested.data.message_thread_id).to.equal(42);
+    await wrapper.setData({ testMessageThreadId: '73' });
+    expect(wrapper.vm.testResult).to.equal(null);
+    await wrapper.vm.save();
+    expect(saved.data).not.to.have.property('message_thread_id');
+    expect(Boolean(wrapper.vm.dirty)).to.equal(false);
   });
 
   it('offers a retry in the page if loading fails', async () => {

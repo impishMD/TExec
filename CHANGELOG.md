@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added optional Telegram forum topics for project task, workflow and approval notifications, including unsaved-form and global credential tests.
+
 ## v1.4.1
 
 - Fixed empty task status charts on PostgreSQL/MySQL by matching timestamp-formatted API dates to their calendar day in both project and template statistics.
