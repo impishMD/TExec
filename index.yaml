@@ -4,6 +4,32 @@ entries:
   - annotations:
       artifacthub.io/license: Apache-2.0
     apiVersion: v2
+    appVersion: 1.5.0
+    created: "2026-11-05T22:40:24.068276542Z"
+    description: Web interface and API for Ansible, Terraform, OpenTofu and scripts
+    digest: 21d8158aa1d733300d5cf0cc0d2c6f59950a0e41a0304321f1f47a784a76cf38
+    home: https://github.com/impishMD/TExec
+    icon: https://raw.githubusercontent.com/impishMD/TExec/main/web/public/favicon.svg
+    keywords:
+    - ansible
+    - terraform
+    - opentofu
+    - automation
+    kubeVersion: '>=1.26.0-0'
+    maintainers:
+    - name: impishMD
+      url: https://github.com/impishMD
+    name: texec
+    sources:
+    - https://github.com/semaphoreui/charts
+    - https://github.com/impishMD/TExec
+    type: application
+    urls:
+    - https://github.com/impishMD/TExec/releases/download/chart-v1.5.0/texec-1.5.0.tgz
+    version: 1.5.0
+  - annotations:
+      artifacthub.io/license: Apache-2.0
+    apiVersion: v2
     appVersion: 1.4.1
     created: "2026-10-14T08:13:19.914296876Z"
     description: Web interface and API for Ansible, Terraform, OpenTofu and scripts
@@ -157,4 +183,4 @@ entries:
     urls:
     - https://github.com/impishMD/TExec/releases/download/chart-v1.0.0/texec-1.0.0.tgz
     version: 1.0.0
-generated: "2026-10-14T08:13:19.914323048Z"
+generated: "2026-11-05T22:40:24.068298635Z"
