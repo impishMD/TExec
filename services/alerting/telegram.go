@@ -71,7 +71,7 @@ func (s Service) sendProjectTelegram(ctx context.Context, projectID int, text, l
 	if !tokenPattern.Match(token) {
 		return false, errors.New("invalid stored Telegram bot token")
 	}
-	return sendTelegramMessage(ctx, string(token), config.ChatID, text, link, button, plain, client)
+	return sendTelegramMessage(ctx, string(token), config.ChatID, config.MessageThreadID, text, link, button, plain, client)
 }
 
 // TestTelegram sends using the submitted form without changing saved settings.
@@ -86,6 +86,13 @@ func (s Service) TestTelegram(ctx context.Context, projectID int, update Telegra
 
 // TestTelegramMessage shares destination and credential resolution with the channel form.
 func (s Service) TestTelegramMessage(ctx context.Context, projectID int, update TelegramUpdate, text string, client *http.Client) error {
+	var messageThreadID int64
+	if update.MessageThreadID != nil {
+		messageThreadID = *update.MessageThreadID
+	}
+	if err := validateTelegramTopic(messageThreadID); err != nil {
+		return err
+	}
 	chatID := strings.TrimSpace(update.ChatID)
 	if len(chatID) > 128 || !chatPattern.MatchString(chatID) {
 		return common_errors.NewValidationError("Enter a Telegram chat ID or channel @username")
@@ -120,16 +127,22 @@ func (s Service) TestTelegramMessage(ctx context.Context, projectID int, update 
 	if len(token) > 256 || !tokenPattern.MatchString(token) {
 		return common_errors.NewValidationError("Invalid Telegram bot token")
 	}
-	_, err = sendTelegramMessage(ctx, token, chatID, text, "", "", true, client)
+	_, err = sendTelegramMessage(ctx, token, chatID, messageThreadID, text, "", "", true, client)
 	return err
 }
 
 func sendTelegram(ctx context.Context, token, chatID, text string, client *http.Client) (bool, error) {
-	return sendTelegramMessage(ctx, token, chatID, text, "", "", false, client)
+	return sendTelegramMessage(ctx, token, chatID, 0, text, "", "", false, client)
 }
 
-func sendTelegramMessage(ctx context.Context, token, chatID, text, link, button string, plain bool, client *http.Client) (bool, error) {
+func sendTelegramMessage(ctx context.Context, token, chatID string, messageThreadID int64, text, link, button string, plain bool, client *http.Client) (bool, error) {
+	if err := validateTelegramTopic(messageThreadID); err != nil {
+		return false, err
+	}
 	payload := map[string]any{"chat_id": chatID, "text": text}
+	if messageThreadID != 0 {
+		payload["message_thread_id"] = messageThreadID
+	}
 	if !plain {
 		payload["parse_mode"] = "HTML"
 	}

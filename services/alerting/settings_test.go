@@ -181,3 +181,40 @@ func TestRekeyIncludesGlobalAndProjectTokens(t *testing.T) {
 		require.Equal(t, "123:secret", string(secret))
 	}
 }
+
+func TestTelegramTopicPersistenceAndCompatibility(t *testing.T) {
+	s, id := setup(t)
+	settings, err := s.UpdateTelegram(id, TelegramUpdate{Enabled: true, ChatID: "-100123", Token: ptr("123:token")})
+	require.NoError(t, err)
+	require.Zero(t, settings.MessageThreadID, "existing chats need no migration")
+	settings, err = s.UpdateTelegram(id, TelegramUpdate{Enabled: true, ChatID: "-100123", MessageThreadID: new(int64(42))})
+	require.NoError(t, err)
+	require.EqualValues(t, 42, settings.MessageThreadID)
+	channel, err := s.Store.GetAlertChannel(id, Telegram)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"chat_id":"-100123","message_thread_id":42}`, channel.Settings)
+	settings, err = s.UpdateTelegram(id, TelegramUpdate{Enabled: false, ChatID: "-100123"})
+	require.NoError(t, err)
+	require.EqualValues(t, 42, settings.MessageThreadID, "an older client must not clear a topic by omitting it")
+	before, err := s.Store.GetAlertChannel(id, Telegram)
+	require.NoError(t, err)
+	for _, topic := range []int64{-1, 2147483648} {
+		_, err = s.UpdateTelegram(id, TelegramUpdate{ChatID: "@changed", MessageThreadID: &topic, Token: ptr("456:replacement")})
+		require.ErrorContains(t, err, "topic ID")
+		after, err := s.Store.GetAlertChannel(id, Telegram)
+		require.NoError(t, err)
+		require.Equal(t, before, after)
+	}
+	settings, err = s.UpdateTelegram(id, TelegramUpdate{Enabled: true, ChatID: "-100123", MessageThreadID: new(int64(0))})
+	require.NoError(t, err)
+	require.Zero(t, settings.MessageThreadID)
+	channel, err = s.Store.GetAlertChannel(id, Telegram)
+	require.NoError(t, err)
+	require.JSONEq(t, `{"chat_id":"-100123"}`, channel.Settings)
+	settings, err = s.UpdateTelegram(0, TelegramUpdate{ChatID: "-100123", MessageThreadID: new(int64(42)), Token: ptr("123:global")})
+	require.NoError(t, err)
+	require.Zero(t, settings.MessageThreadID, "global settings store credentials, not destinations")
+	other, err := s.Store.GetAlertChannel(id+1, Telegram)
+	require.NoError(t, err)
+	require.JSONEq(t, `{}`, other.Settings)
+}

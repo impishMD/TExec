@@ -130,6 +130,12 @@ definitions:
       enabled:
         type: boolean
         description: Per-project enablement; false for global settings.
+      message_thread_id:
+        type: integer
+        format: int64
+        minimum: 0
+        maximum: 2147483647
+        description: Project topic ID; zero means no explicit topic. Global settings always return zero.
       chat_id:
         type: string
       has_token:
@@ -156,6 +162,12 @@ definitions:
         type: boolean
         default: false
         description: Enables Telegram for the project; ignored for global settings.
+      message_thread_id:
+        type: integer
+        format: int64
+        minimum: 0
+        maximum: 2147483647
+        description: Project forum topic ID. Omit or use null to preserve; zero clears it. Ignored when saving global settings.
       chat_id:
         type: string
         description: Project destination (numeric chat ID or channel @username); ignored for global settings.
@@ -207,6 +219,12 @@ definitions:
     type: object
     required: [chat_id]
     properties:
+      message_thread_id:
+        type: integer
+        format: int64
+        minimum: 0
+        maximum: 2147483647
+        description: Topic ID from the current form, for global or project tests. Omitted, null or zero sends without an explicit topic; never saved.
       chat_id:
         type: string
         description: Test destination (numeric chat ID or channel @username). Required for both global and project tests; never saved.

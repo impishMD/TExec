@@ -22,6 +22,7 @@ type TelegramSettings struct {
 	Channel               string                          `json:"channel"`
 	Enabled               bool                            `json:"enabled"`
 	ChatID                string                          `json:"chat_id"`
+	MessageThreadID       int64                           `json:"message_thread_id"`
 	HasToken              bool                            `json:"has_token"`
 	GlobalTokenConfigured bool                            `json:"global_token_configured"`
 }
@@ -30,12 +31,15 @@ type TelegramUpdate struct {
 	Templates *taskmessage.Settings `json:"templates,omitempty"`
 	Enabled   bool                  `json:"enabled"`
 	ChatID    string                `json:"chat_id"`
+	// Omitted/null preserves the saved topic; zero clears it.
+	MessageThreadID *int64 `json:"message_thread_id"`
 	// Omitted/null preserves the secret; an empty string explicitly removes it.
 	Token *string `json:"token"`
 }
 
 type telegramConfig struct {
-	ChatID string `json:"chat_id"`
+	ChatID          string `json:"chat_id"`
+	MessageThreadID int64  `json:"message_thread_id,omitempty"`
 }
 
 type Service struct{ Store db.AlertChannelRepository }
@@ -49,7 +53,7 @@ func (s Service) GetTelegram(projectID int) (TelegramSettings, error) {
 	if err = json.Unmarshal([]byte(c.Settings), &config); err != nil {
 		return TelegramSettings{}, err
 	}
-	result := TelegramSettings{Channel: Telegram, Enabled: c.Enabled, ChatID: config.ChatID, HasToken: c.Secret != ""}
+	result := TelegramSettings{Channel: Telegram, Enabled: c.Enabled, ChatID: config.ChatID, MessageThreadID: config.MessageThreadID, HasToken: c.Secret != ""}
 	if projectID != 0 {
 		result.Templates, err = taskmessage.Parse(c.MessageTemplates)
 		if err != nil {
@@ -69,10 +73,29 @@ func (s Service) GetTelegram(projectID int) (TelegramSettings, error) {
 var tokenPattern = regexp.MustCompile(`^[0-9]+:[A-Za-z0-9_-]+$`)
 var chatPattern = regexp.MustCompile(`^(-?[1-9][0-9]*|@[A-Za-z][A-Za-z0-9_]{4,})$`)
 
+func validateTelegramTopic(id int64) error {
+	if id < 0 || id > 2147483647 {
+		return common_errors.NewValidationError("Enter a valid Telegram topic ID")
+	}
+	return nil
+}
+
 func (s Service) UpdateTelegram(projectID int, update TelegramUpdate) (TelegramSettings, error) {
 	c, err := s.Store.GetAlertChannel(projectID, Telegram)
 	if err != nil {
 		return TelegramSettings{}, err
+	}
+	var config telegramConfig
+	if err = json.Unmarshal([]byte(c.Settings), &config); err != nil {
+		return TelegramSettings{}, err
+	}
+	if projectID == 0 {
+		config.MessageThreadID = 0
+	} else if update.MessageThreadID != nil {
+		if err = validateTelegramTopic(*update.MessageThreadID); err != nil {
+			return TelegramSettings{}, err
+		}
+		config.MessageThreadID = *update.MessageThreadID
 	}
 	if update.Templates != nil {
 		if projectID == 0 {
@@ -123,8 +146,9 @@ func (s Service) UpdateTelegram(projectID int, update TelegramUpdate) (TelegramS
 	if len(chatID) > 128 {
 		return TelegramSettings{}, common_errors.NewValidationError("Telegram chat ID is too long")
 	}
-	config, _ := json.Marshal(telegramConfig{ChatID: chatID})
-	c.Settings = string(config)
+	config.ChatID = chatID
+	rawConfig, _ := json.Marshal(config)
+	c.Settings = string(rawConfig)
 	c.Enabled = projectID != 0 && update.Enabled
 	if err = s.Store.SetAlertChannel(c); err != nil {
 		return TelegramSettings{}, err

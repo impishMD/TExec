@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## v1.5.0
+
+- Added an optional Topic ID to project Telegram settings for task results, workflow notifications and approval alerts.
+- Notification tests use the unsaved topic from the form; global bot credential tests also accept a temporary Topic ID.
+- Preserved existing delivery behavior when the Topic ID is empty, without a database schema migration or new deployment settings.
+- Helm chart 1.5.0 deploys TExec v1.5.0 with compatible existing values.
+
+[English release notes](release-notes/en/v1.5.0.md) · [Русский](release-notes/ru/v1.5.0.md)
+
 ## v1.4.1
 
 - Fixed empty task status charts on PostgreSQL/MySQL by matching timestamp-formatted API dates to their calendar day in both project and template statistics.
